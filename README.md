@@ -1,7 +1,7 @@
 
 # KubeAid
 
-[![Go Version](https://img.shields.io/badge/Go-1.21-blue.svg)](https://golang.org)
+[![Go Version](https://img.shields.io/badge/Go-1.26-blue.svg)](https://golang.org)
 [![Build](https://img.shields.io/badge/build-passing-brightgreen)]()
 [![License](https://img.shields.io/badge/license-Apache%202.0-blue.svg)](LICENSE)
 [![PRs Welcome](https://img.shields.io/badge/PRs-welcome-brightgreen.svg?style=flat-square)](https://makeapullrequest.com)

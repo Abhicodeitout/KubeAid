@@ -14,8 +14,8 @@ var bootstrapCmd = &cobra.Command{
 	Run: func(cmd *cobra.Command, args []string) {
 		fmt.Println("Running environment pre-checks...")
 		// Check Go version
-		if runtime.Version() < "go1.21" {
-			fmt.Printf("Go version 1.21+ required, found %s\n", runtime.Version())
+		if runtime.Version() < "go1.26" {
+			fmt.Printf("Go version 1.26+ required, found %s\n", runtime.Version())
 			os.Exit(1)
 		}
 		// Check kubeconfig
