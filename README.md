@@ -63,6 +63,7 @@ kube-debugger --help
 | kube-debugger completion [shell]        | Generate shell completion scripts           |
 | kube-debugger version                   | Show kube-debugger version                  |
 | kube-debugger --help                    | Show help for all commands                  |
+| kube-debugger bootstrap                 | Run cross-platform environment pre-checks   |
 
 
 ---
@@ -99,6 +100,13 @@ kube-debugger completion zsh
 ### Show version
 ```sh
 kube-debugger version
+```
+
+### Bootstrap (Pre-check)
+```sh
+kube-debugger bootstrap
+```
+Runs environment pre-checks (Go version, kubeconfig presence) before using other commands. Works on Linux, Windows, and Mac.
 ```
 
 ---
