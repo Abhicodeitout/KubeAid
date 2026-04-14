@@ -1,0 +1,12 @@
+# Binaries
+kube-debugger
+*.exe
+*.out
+*.test
+
+# Vendor
+/vendor/
+
+# IDE
+.idea/
+.vscode/
