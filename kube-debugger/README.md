@@ -3,7 +3,7 @@
 
 [![Go Version](https://img.shields.io/badge/Go-1.21-blue.svg)](https://golang.org)
 [![Build](https://img.shields.io/badge/build-passing-brightgreen)]()
-[![License](https://img.shields.io/badge/license-MIT-green.svg)](LICENSE)
+[![License](https://img.shields.io/badge/license-Apache%202.0-blue.svg)](LICENSE)
 [![PRs Welcome](https://img.shields.io/badge/PRs-welcome-brightgreen.svg?style=flat-square)](https://makeapullrequest.com)
 
 > 🚀 Smart Kubernetes Debug CLI – Diagnose and fix pod issues instantly!
@@ -135,4 +135,4 @@ PRs welcome! Please open issues for feature requests or bugs.
 ---
 
 ## License
-MIT
+Apache-2.0
