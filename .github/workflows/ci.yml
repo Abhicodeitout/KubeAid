@@ -1,0 +1,62 @@
+name: CI
+
+on:
+  push:
+    branches: [ main ]
+  pull_request:
+    branches: [ main ]
+
+jobs:
+  build-and-test:
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: kube-debugger
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Set up Go
+        uses: actions/setup-go@v5
+        with:
+          go-version: '1.26'
+
+      - name: Build
+        run: make build
+
+      - name: Test
+        run: make test
+
+  cli-smoke:
+    runs-on: ubuntu-latest
+    needs: build-and-test
+    defaults:
+      run:
+        working-directory: kube-debugger
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Set up Go
+        uses: actions/setup-go@v5
+        with:
+          go-version: '1.26'
+
+      - name: Build CLI
+        run: make build
+
+      - name: Smoke test command help/version/completion/bootstrap
+        run: |
+          ./kube-debugger --help >/dev/null
+          ./kube-debugger version >/dev/null
+          ./kube-debugger completion bash >/dev/null
+          ./kube-debugger completion zsh >/dev/null
+          ./kube-debugger completion fish >/dev/null
+          ./kube-debugger completion powershell >/dev/null
+          ./kube-debugger bootstrap --skip-kubeconfig-check >/dev/null
+
+      - name: Smoke test analyze/report fallback output
+        run: |
+          ./kube-debugger analyze demo-app -n default >/tmp/analyze.out
+          ./kube-debugger report demo-app -n default -f json >/tmp/report.out
+          grep -E "Error connecting|No pods found|no pods found|error connecting" /tmp/analyze.out /tmp/report.out
