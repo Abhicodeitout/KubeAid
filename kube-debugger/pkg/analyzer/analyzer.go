@@ -1,35 +1,152 @@
 package analyzer
 
-
 import (
-	"fmt"
 	"context"
+	"fmt"
 	"os"
+	"strings"
+	"time"
+
+	"github.com/charmbracelet/lipgloss"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
-	"kube-debugger/pkg/kubernetes"
 	"kube-debugger/pkg/diagnostics"
+	"kube-debugger/pkg/kubernetes"
 )
 
-func AnalyzeApp(appName string) string {
-	namespace := os.Getenv("KUBE_NAMESPACE")
+// PodSummary holds per-pod data within a multi-pod report.
+type PodSummary struct {
+	Name         string `json:"name"`
+	Status       string `json:"status"`
+	Ready        string `json:"ready"`
+	RestartCount int32  `json:"restart_count"`
+	Age          string `json:"age"`
+}
+
+// Report holds structured analysis data for a Kubernetes app.
+type Report struct {
+	AppName     string       `json:"app_name"`
+	Namespace   string       `json:"namespace"`
+	PodCount    int          `json:"pod_count"`
+	Pods        []PodSummary `json:"pods"`
+	// Primary pod (most relevant / most troubled)
+	PodName      string   `json:"pod_name"`
+	Status       string   `json:"status"`
+	Ready        string   `json:"ready"`
+	RestartCount int32    `json:"restart_count"`
+	Age          string   `json:"age"`
+	HealthScore  int      `json:"health_score"`
+	Logs         string   `json:"logs"`
+	Events       string   `json:"events"`
+	Resources    string   `json:"resources"`
+	AIHint       string   `json:"ai_hint"`
+	Suggestions  []string `json:"suggestions"`
+	GeneratedAt  time.Time `json:"generated_at"`
+}
+
+// HealthScore computes a 0–100 score based on status, restarts, and events.
+func computeHealthScore(status string, restarts int32, events string) int {
+	score := 100
+	s := strings.ToLower(status)
+	switch {
+	case s == "crashloopbackoff":
+		score -= 60
+	case s == "oomkilled":
+		score -= 50
+	case s == "imagepullbackoff" || s == "errimagepull":
+		score -= 50
+	case s == "evicted":
+		score -= 40
+	case s == "terminating":
+		score -= 30
+	case s == "containercreating":
+		score -= 20
+	case s == "pending":
+		score -= 20
+	case s == "running":
+		// healthy base
+	}
+	// penalise restarts
+	if restarts >= 10 {
+		score -= 30
+	} else if restarts >= 5 {
+		score -= 20
+	} else if restarts >= 1 {
+		score -= 10
+	}
+	// penalise warning/failed events
+	for _, line := range strings.Split(strings.ToLower(events), "\n") {
+		if strings.Contains(line, "warning") || strings.Contains(line, "failed") || strings.Contains(line, "kill") {
+			score -= 5
+		}
+	}
+	if score < 0 {
+		score = 0
+	}
+	return score
+}
+
+func podAge(creationTime metav1.Time) string {
+	d := time.Since(creationTime.Time)
+	if d.Hours() >= 24 {
+		return fmt.Sprintf("%.0fd", d.Hours()/24)
+	}
+	if d.Hours() >= 1 {
+		return fmt.Sprintf("%.0fh", d.Hours())
+	}
+	return fmt.Sprintf("%.0fm", d.Minutes())
+}
+
+// AnalyzeAppReport performs analysis and returns a structured Report.
+func AnalyzeAppReport(appName, namespace string) (*Report, error) {
+	if namespace == "" {
+		namespace = os.Getenv("KUBE_NAMESPACE")
+	}
 	if namespace == "" {
 		namespace = "default"
 	}
 	clientset, err := kubernetes.GetKubeClient()
 	if err != nil {
-		return fmt.Sprintf("❌ Error connecting to cluster: %v", err)
+		return nil, fmt.Errorf("error connecting to cluster: %w", err)
 	}
-	pods, err := clientset.CoreV1().Pods(namespace).List(context.TODO(), metav1.ListOptions{
+	podList, err := clientset.CoreV1().Pods(namespace).List(context.TODO(), metav1.ListOptions{
 		LabelSelector: fmt.Sprintf("app=%s", appName),
 	})
-	if err != nil || len(pods.Items) == 0 {
-		return fmt.Sprintf("❌ No pods found for app '%s' in namespace '%s'", appName, namespace)
+	if err != nil || len(podList.Items) == 0 {
+		return nil, fmt.Errorf("no pods found for app '%s' in namespace '%s'", appName, namespace)
 	}
-	pod := pods.Items[0]
-	status := string(pod.Status.Phase)
-	if len(pod.Status.ContainerStatuses) > 0 && pod.Status.ContainerStatuses[0].State.Waiting != nil {
-		status = pod.Status.ContainerStatuses[0].State.Waiting.Reason
+
+	// Build pod summaries and pick the "primary" pod — prefer most troubled one
+	var summaries []PodSummary
+	primaryIdx := 0
+	for i, p := range podList.Items {
+		st := string(p.Status.Phase)
+		if len(p.Status.ContainerStatuses) > 0 && p.Status.ContainerStatuses[0].State.Waiting != nil {
+			st = p.Status.ContainerStatuses[0].State.Waiting.Reason
+		}
+		ready := "0/1"
+		var rc int32
+		if len(p.Status.ContainerStatuses) > 0 {
+			rc = p.Status.ContainerStatuses[0].RestartCount
+			if p.Status.ContainerStatuses[0].Ready {
+				ready = "1/1"
+			}
+		}
+		summaries = append(summaries, PodSummary{
+			Name:         p.Name,
+			Status:       st,
+			Ready:        ready,
+			RestartCount: rc,
+			Age:          podAge(p.CreationTimestamp),
+		})
+		// prefer troubled pods over healthy ones
+		if rc > summaries[primaryIdx].RestartCount || strings.ToLower(st) != "running" {
+			primaryIdx = i
+		}
 	}
+
+	pod := podList.Items[primaryIdx]
+	ps := summaries[primaryIdx]
+
 	logs, _ := kubernetes.GetPodLogs(clientset, namespace, pod.Name)
 	events, _ := kubernetes.GetPodEvents(clientset, namespace, pod.Name)
 	resources, _ := kubernetes.GetPodResourceUsage(clientset, namespace, pod.Name)
@@ -37,12 +154,175 @@ func AnalyzeApp(appName string) string {
 	if len(pod.Status.ContainerStatuses) > 0 && pod.Status.ContainerStatuses[0].LastTerminationState.Terminated != nil {
 		lastError = pod.Status.ContainerStatuses[0].LastTerminationState.Terminated.Message
 	}
-	suggestions := diagnostics.SuggestFix(status, lastError)
-	aiHint := diagnostics.AnalyzeLogsAI(logs)
 
-	return fmt.Sprintf(
-		"❌ Pod: %s\nStatus: %s\n\n📜 Last Logs:\n%s\n\n🤖 %s\n\n📅 Events:\n%s\n\n📊 Resources:\n%s\n\n📌 Suggestions:\n- %s\n",
-		pod.Name, status, logs, aiHint, events, resources, 
-		fmt.Sprintf("%s", suggestions),
-	)
+	return &Report{
+		AppName:      appName,
+		Namespace:    namespace,
+		PodCount:     len(podList.Items),
+		Pods:         summaries,
+		PodName:      ps.Name,
+		Status:       ps.Status,
+		Ready:        ps.Ready,
+		RestartCount: ps.RestartCount,
+		Age:          ps.Age,
+		HealthScore:  computeHealthScore(ps.Status, ps.RestartCount, events),
+		Logs:         logs,
+		Events:       events,
+		Resources:    resources,
+		AIHint:       diagnostics.AnalyzeWithContext(appName, namespace, ps.Name, ps.Status, ps.RestartCount, logs, events),
+		Suggestions:  diagnostics.SuggestFix(ps.Status, lastError),
+		GeneratedAt:  time.Now().UTC(),
+	}, nil
+}
+
+// ─── lipgloss styles ─────────────────────────────────────────────────────────
+
+var (
+	styleBorder = lipgloss.NewStyle().
+			Border(lipgloss.RoundedBorder()).
+			BorderForeground(lipgloss.Color("63")).
+			Padding(0, 1)
+
+	styleTitle = lipgloss.NewStyle().
+			Bold(true).
+			Foreground(lipgloss.Color("63")).
+			MarginBottom(1)
+
+	styleLabel = lipgloss.NewStyle().Bold(true).Foreground(lipgloss.Color("250"))
+	styleValue = lipgloss.NewStyle().Foreground(lipgloss.Color("255"))
+
+	styleGreen  = lipgloss.NewStyle().Foreground(lipgloss.Color("82"))
+	styleYellow = lipgloss.NewStyle().Foreground(lipgloss.Color("220"))
+	styleRed    = lipgloss.NewStyle().Foreground(lipgloss.Color("196"))
+
+	styleDim      = lipgloss.NewStyle().Foreground(lipgloss.Color("240"))
+	styleSectionH = lipgloss.NewStyle().Bold(true).Foreground(lipgloss.Color("33"))
+	styleHint     = lipgloss.NewStyle().Foreground(lipgloss.Color("214")).Italic(true)
+)
+
+func healthColor(score int) lipgloss.Style {
+	if score >= 80 {
+		return styleGreen
+	}
+	if score >= 50 {
+		return styleYellow
+	}
+	return styleRed
+}
+
+func statusColor(status string) string {
+	s := strings.ToLower(status)
+	switch {
+	case s == "running":
+		return styleGreen.Render(status)
+	case s == "pending" || s == "containercreating":
+		return styleYellow.Render(status)
+	default:
+		return styleRed.Render(status)
+	}
+}
+
+func healthBar(score int) string {
+	filled := score / 10
+	bar := strings.Repeat("█", filled) + strings.Repeat("░", 10-filled)
+	return healthColor(score).Render(bar) + fmt.Sprintf("  %d/100", score)
+}
+
+func divider(title string) string {
+	return "\n" + styleSectionH.Render("── "+title+" ") + styleDim.Render(strings.Repeat("─", 50)) + "\n"
+}
+
+func kv(label, value string) string {
+	return styleLabel.Render(fmt.Sprintf("  %-16s", label)) + styleValue.Render(value)
+}
+
+// AnalyzeApp performs analysis and returns a rich formatted string for the terminal.
+func AnalyzeApp(appName, namespace string) string {
+	r, err := AnalyzeAppReport(appName, namespace)
+	if err != nil {
+		return styleRed.Render("❌  "+err.Error()) + "\n"
+	}
+
+	var b strings.Builder
+
+	// ── Header ───────────────────────────────────────────────────────────────
+	header := styleTitle.Render(fmt.Sprintf("  KubeAid  ·  %s  ·  ns: %s", r.AppName, r.Namespace))
+	b.WriteString(styleBorder.Render(header) + "\n")
+
+	// ── Pod Overview ─────────────────────────────────────────────────────────
+	b.WriteString(divider("POD OVERVIEW"))
+	b.WriteString(kv("App:", r.AppName) + "\n")
+	b.WriteString(kv("Namespace:", r.Namespace) + "\n")
+	b.WriteString(kv("Total Pods:", fmt.Sprintf("%d", r.PodCount)) + "\n")
+
+	if len(r.Pods) > 1 {
+		b.WriteString("\n")
+		b.WriteString(styleLabel.Render(fmt.Sprintf("  %-42s %-16s %-6s %-9s %s\n", "POD", "STATUS", "READY", "RESTARTS", "AGE")))
+		for _, p := range r.Pods {
+			b.WriteString(styleDim.Render(fmt.Sprintf("  %-42s ", p.Name)))
+			b.WriteString(statusColor(p.Status) + "  ")
+			b.WriteString(styleValue.Render(fmt.Sprintf("%-6s %-9d %s\n", p.Ready, p.RestartCount, p.Age)))
+		}
+	}
+
+	// ── Primary Pod Detail ───────────────────────────────────────────────────
+	b.WriteString(divider("PRIMARY POD"))
+	b.WriteString(kv("Name:", r.PodName) + "\n")
+	b.WriteString(kv("Status:", statusColor(r.Status)) + "\n")
+	b.WriteString(kv("Ready:", r.Ready) + "\n")
+	b.WriteString(kv("Restarts:", fmt.Sprintf("%d", r.RestartCount)) + "\n")
+	b.WriteString(kv("Age:", r.Age) + "\n")
+
+	// ── Health Score ─────────────────────────────────────────────────────────
+	b.WriteString(divider("HEALTH SCORE"))
+	b.WriteString("  " + healthBar(r.HealthScore) + "\n")
+
+	// ── AI Hint ──────────────────────────────────────────────────────────────
+	b.WriteString(divider("AI ANALYSIS"))
+	b.WriteString("  " + styleHint.Render(r.AIHint) + "\n")
+
+	// ── Suggestions ──────────────────────────────────────────────────────────
+	b.WriteString(divider("SUGGESTIONS"))
+	for i, s := range r.Suggestions {
+		b.WriteString(styleYellow.Render(fmt.Sprintf("  %d. ", i+1)) + styleValue.Render(s) + "\n")
+	}
+
+	// ── Events ───────────────────────────────────────────────────────────────
+	b.WriteString(divider("EVENTS"))
+	for _, line := range strings.Split(strings.TrimSpace(r.Events), "\n") {
+		if line == "" {
+			continue
+		}
+		l := strings.ToLower(line)
+		if strings.Contains(l, "warning") || strings.Contains(l, "failed") || strings.Contains(l, "kill") {
+			b.WriteString(styleRed.Render("  ⚠  "+line) + "\n")
+		} else {
+			b.WriteString(styleDim.Render("  ·  "+line) + "\n")
+		}
+	}
+
+	// ── Resource Usage ───────────────────────────────────────────────────────
+	b.WriteString(divider("RESOURCE USAGE"))
+	for _, line := range strings.Split(strings.TrimSpace(r.Resources), "\n") {
+		b.WriteString("  " + styleValue.Render(line) + "\n")
+	}
+
+	// ── Last Logs ────────────────────────────────────────────────────────────
+	b.WriteString(divider("LAST LOGS (tail 20)"))
+	for _, line := range strings.Split(strings.TrimSpace(r.Logs), "\n") {
+		if line == "" {
+			continue
+		}
+		l := strings.ToLower(line)
+		if strings.ContainsAny(l, "error") || strings.Contains(l, "fatal") || strings.Contains(l, "panic") {
+			b.WriteString(styleRed.Render("  "+line) + "\n")
+		} else if strings.Contains(l, "warn") {
+			b.WriteString(styleYellow.Render("  "+line) + "\n")
+		} else {
+			b.WriteString(styleDim.Render("  "+line) + "\n")
+		}
+	}
+
+	b.WriteString("\n" + styleDim.Render(fmt.Sprintf("  Generated at %s", r.GeneratedAt.Format("2006-01-02 15:04:05 UTC"))) + "\n")
+	return b.String()
 }

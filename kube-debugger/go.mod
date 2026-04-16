@@ -3,14 +3,16 @@ module kube-debugger
 go 1.26
 
 require (
+	github.com/charmbracelet/bubbletea v0.25.0
+	github.com/charmbracelet/lipgloss v0.9.1
 	github.com/spf13/cobra v1.8.0
+	k8s.io/api v0.29.0
+	k8s.io/apimachinery v0.29.0
 	k8s.io/client-go v0.29.0
 )
 
 require (
 	github.com/aymanbagabas/go-osc52/v2 v2.0.1 // indirect
-	github.com/charmbracelet/bubbletea v0.25.0 // indirect
-	github.com/charmbracelet/lipgloss v0.9.1 // indirect
 	github.com/containerd/console v1.0.4-0.20230313162750-1ae8d489ac81 // indirect
 	github.com/davecgh/go-spew v1.1.1 // indirect
 	github.com/emicklei/go-restful/v3 v3.11.0 // indirect
@@ -53,8 +55,6 @@ require (
 	gopkg.in/inf.v0 v0.9.1 // indirect
 	gopkg.in/yaml.v2 v2.4.0 // indirect
 	gopkg.in/yaml.v3 v3.0.1 // indirect
-	k8s.io/api v0.29.0 // indirect
-	k8s.io/apimachinery v0.29.0 // indirect
 	k8s.io/klog/v2 v2.110.1 // indirect
 	k8s.io/kube-openapi v0.0.0-20231010175941-2dd684a91f00 // indirect
 	k8s.io/utils v0.0.0-20230726121419-3b25d923346b // indirect
