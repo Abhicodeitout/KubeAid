@@ -7,6 +7,9 @@ This document shows practical examples for all `kube-debugger` commands.
 ```text
 kube-debugger
 ├── analyze [app-name]
+├── crashloops
+├── history [app-name]
+│   └── clear [app-name]
 ├── report [app-name]
 ├── bootstrap
 ├── context
@@ -37,6 +40,30 @@ If you want bootstrap without kubeconfig validation:
 ```sh
 make bootstrap SKIP_KUBECONFIG_CHECK=true
 ```
+
+## OS Compatibility
+
+`kube-debugger` is supported on Linux, macOS, and Windows.
+
+| OS | Status | Notes |
+|---|---|---|
+| Linux | Supported | `report --open` uses `xdg-open` or `$BROWSER`. |
+| macOS | Supported | `report --open` uses `open` or `$BROWSER`. |
+| Windows | Supported | `report --open` uses `cmd /c start` or `$BROWSER`. |
+
+Required on all OS:
+- `kubectl` installed and configured
+- Valid kubeconfig (`~/.kube/config` or `KUBECONFIG`)
+
+Optional by feature:
+- `gh` CLI for `report --create-issue`
+- Ollama for local AI provider
+- `GROQ_API_KEY` for Groq provider
+
+Notes:
+- `make` targets are easiest on Linux/macOS.
+- On Windows, use WSL or Git Bash for `make` workflows.
+- If browser auto-open is not available, set `$BROWSER`.
 
 ## Root and Help
 
@@ -73,7 +100,55 @@ Flags:
 | Flag | Short | Default | Description |
 |---|---|---|---|
 | `--namespace` | `-n` | `default` | Kubernetes namespace for pod lookup |
+| `--all-namespaces` | `-A` | `false` | Scan the app across all namespaces |
+| `--watch` | - | `false` | Continuously rerun analysis |
+| `--interval` | - | `10` | Watch interval in seconds |
+| `--exit-code` | - | `false` | Exit with code 2 when score is below threshold |
+| `--threshold` | - | `80` | Health score threshold for `--exit-code` |
+| `--alert-webhook` | - | empty | Send JSON alert to webhook on low score |
+| `--alert-threshold` | - | `80` | Health score threshold for webhook alerts |
 | `--help` | `-h` | - | Show help |
+
+Examples:
+
+```sh
+./kube-debugger analyze my-app --watch --interval 5
+./kube-debugger analyze my-app --exit-code --threshold 85
+./kube-debugger analyze my-app --alert-webhook https://example.com/hook --alert-threshold 75
+./kube-debugger analyze my-app -A
+```
+
+## Crashloops
+
+Detect crash loops and print previous container logs:
+
+```sh
+./kube-debugger crashloops
+./kube-debugger crashloops -n default
+```
+
+Flags:
+
+| Flag | Short | Default | Description |
+|---|---|---|---|
+| `--namespace` | `-n` | `default` | Namespace to scan |
+| `--help` | `-h` | - | Show help |
+
+## History
+
+Show recorded health score history for an app:
+
+```sh
+./kube-debugger history my-app
+./kube-debugger history my-app -n default
+```
+
+Clear stored history:
+
+```sh
+./kube-debugger history clear
+./kube-debugger history clear my-app
+```
 
 ## Report
 
@@ -110,6 +185,9 @@ Flags:
 | `--format` | `-f` | `text` | Output format: `text`, `json`, `html` |
 | `--output` | `-o` | stdout | Write report to a file path |
 | `--namespace` | `-n` | `default` | Kubernetes namespace for pod lookup |
+| `--diff` | - | empty | Compare with a previous JSON report file |
+| `--open` | - | `false` | Open HTML report automatically after write |
+| `--create-issue` | - | `false` | Create GitHub issue from report via gh CLI |
 | `--help` | `-h` | - | Show help |
 
 ## Context
@@ -200,6 +278,7 @@ Build binary:
 
 ```sh
 make build
+make build VERSION=v1.2.0
 ```
 
 Run tests:
@@ -230,6 +309,12 @@ Alias target:
 
 ```sh
 make build-bootstrap
+```
+
+Install binary and kubectl-style alias into local bin:
+
+```sh
+make install
 ```
 
 Configurable make variables:

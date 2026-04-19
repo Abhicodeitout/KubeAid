@@ -24,4 +24,23 @@ func GetPodLogs(clientset *kubernetes.Clientset, namespace, podName string) (str
 	return buf.String(), nil
 }
 
+// GetPodPreviousLogs fetches logs from the previous (terminated) container instance.
+func GetPodPreviousLogs(clientset *kubernetes.Clientset, namespace, podName, containerName string) (string, error) {
+	prev := true
+	podLogOpts := &corev1.PodLogOptions{
+		Previous:  prev,
+		Container: containerName,
+		TailLines: int64Ptr(50),
+	}
+	req := clientset.CoreV1().Pods(namespace).GetLogs(podName, podLogOpts)
+	podLogs, err := req.Stream(context.TODO())
+	if err != nil {
+		return "", err
+	}
+	defer podLogs.Close()
+	buf := new(strings.Builder)
+	_, err = io.Copy(buf, podLogs)
+	return buf.String(), err
+}
+
 func int64Ptr(i int64) *int64 { return &i }

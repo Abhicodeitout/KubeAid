@@ -43,10 +43,15 @@ type Report struct {
 	GeneratedAt  time.Time `json:"generated_at"`
 }
 
-// HealthScore computes a 0–100 score based on status, restarts, and events.
-func computeHealthScore(status string, restarts int32, events string) int {
+// HealthScore computes a 0–100 score based on status, readiness, restarts, and events.
+func computeHealthScore(status, ready string, restarts int32, events string) int {
 	score := 100
 	s := strings.ToLower(status)
+	r := strings.TrimSpace(strings.ToLower(ready))
+	if r != "1/1" {
+		// A non-ready primary pod is a strong signal of degraded service.
+		score -= 30
+	}
 	switch {
 	case s == "crashloopbackoff":
 		score -= 60
@@ -165,12 +170,12 @@ func AnalyzeAppReport(appName, namespace string) (*Report, error) {
 		Ready:        ps.Ready,
 		RestartCount: ps.RestartCount,
 		Age:          ps.Age,
-		HealthScore:  computeHealthScore(ps.Status, ps.RestartCount, events),
+		HealthScore:  computeHealthScore(ps.Status, ps.Ready, ps.RestartCount, events),
 		Logs:         logs,
 		Events:       events,
 		Resources:    resources,
 		AIHint:       diagnostics.AnalyzeWithContext(appName, namespace, ps.Name, ps.Status, ps.RestartCount, logs, events),
-		Suggestions:  diagnostics.SuggestFix(ps.Status, lastError),
+		Suggestions:  diagnostics.SuggestFixForPod(ps.Status, lastError, ps.Name, namespace),
 		GeneratedAt:  time.Now().UTC(),
 	}, nil
 }
@@ -242,7 +247,10 @@ func AnalyzeApp(appName, namespace string) string {
 	if err != nil {
 		return styleRed.Render("❌  "+err.Error()) + "\n"
 	}
+	return renderReport(r)
+}
 
+func renderReport(r *Report) string {
 	var b strings.Builder
 
 	// ── Header ───────────────────────────────────────────────────────────────
@@ -326,3 +334,78 @@ func AnalyzeApp(appName, namespace string) string {
 	b.WriteString("\n" + styleDim.Render(fmt.Sprintf("  Generated at %s", r.GeneratedAt.Format("2006-01-02 15:04:05 UTC"))) + "\n")
 	return b.String()
 }
+
+// RenderReport renders a Report to a terminal string (same as AnalyzeApp but accepts an existing Report).
+func RenderReport(r *Report) string {
+	return renderReport(r)
+}
+
+// AnalyzeAllNamespaces scans for the app in all namespaces and returns a combined formatted output.
+func AnalyzeAllNamespaces(appName string) string {
+	clientset, err := kubernetes.GetKubeClient()
+	if err != nil {
+		return styleRed.Render("❌  "+err.Error()) + "\n"
+	}
+	nsList, err := clientset.CoreV1().Namespaces().List(context.TODO(), metav1.ListOptions{})
+	if err != nil {
+		return styleRed.Render("❌  Failed to list namespaces: "+err.Error()) + "\n"
+	}
+
+	var b strings.Builder
+	found := 0
+	for _, ns := range nsList.Items {
+		r, err := AnalyzeAppReport(appName, ns.Name)
+		if err != nil {
+			continue // app not in this namespace
+		}
+		found++
+		b.WriteString(renderReport(r))
+		b.WriteString("\n")
+	}
+	if found == 0 {
+		b.WriteString(styleRed.Render(fmt.Sprintf("❌  No pods found for app '%s' in any namespace.", appName)) + "\n")
+	}
+	return b.String()
+}
+
+// CrashLoopInfo holds previous-container log excerpt for a CrashLoopBackOff pod.
+type CrashLoopInfo struct {
+	PodName     string
+	Namespace   string
+	Restarts    int32
+	PreviousLog string
+}
+
+// DetectCrashLoops returns pods in CrashLoopBackOff with their previous container logs.
+func DetectCrashLoops(namespace string) ([]CrashLoopInfo, error) {
+	if namespace == "" {
+		namespace = "default"
+	}
+	clientset, err := kubernetes.GetKubeClient()
+	if err != nil {
+		return nil, err
+	}
+	podList, err := clientset.CoreV1().Pods(namespace).List(context.TODO(), metav1.ListOptions{})
+	if err != nil {
+		return nil, err
+	}
+
+	var results []CrashLoopInfo
+	for _, pod := range podList.Items {
+		for _, cs := range pod.Status.ContainerStatuses {
+			isCrashLoop := cs.State.Waiting != nil && strings.EqualFold(cs.State.Waiting.Reason, "CrashLoopBackOff")
+			hasBackoffSignals := cs.RestartCount > 0 && (!cs.Ready || (cs.State.Waiting != nil && strings.Contains(strings.ToLower(cs.State.Waiting.Reason), "backoff")))
+			if isCrashLoop || hasBackoffSignals {
+				prevLog, _ := kubernetes.GetPodPreviousLogs(clientset, namespace, pod.Name, cs.Name)
+				results = append(results, CrashLoopInfo{
+					PodName:     pod.Name,
+					Namespace:   namespace,
+					Restarts:    cs.RestartCount,
+					PreviousLog: prevLog,
+				})
+			}
+		}
+	}
+	return results, nil
+}
+

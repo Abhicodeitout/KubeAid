@@ -5,7 +5,10 @@ import (
 	"fmt"
 	"html/template"
 	"os"
+	"os/exec"
+	"runtime"
 	"strings"
+	"time"
 
 	"github.com/spf13/cobra"
 	"kube-debugger/pkg/analyzer"
@@ -15,6 +18,9 @@ var (
 	reportFormat    string
 	reportOutput    string
 	reportNamespace string
+	reportOpen      bool
+	reportDiff      string
+	reportIssue     bool
 )
 
 var htmlReportTmpl = `<!DOCTYPE html>
@@ -96,15 +102,24 @@ var reportCmd = &cobra.Command{
 	Args:  cobra.ExactArgs(1),
 	Run: func(cmd *cobra.Command, args []string) {
 		appName := args[0]
+		setAdvisorContextLine("command=report")
+		setAdvisorContextLine("app=" + appName)
 		r, err := analyzer.AnalyzeAppReport(appName, reportNamespace)
 		if err != nil {
 			fmt.Fprintf(os.Stderr, "❌ %v\n", err)
+			setAdvisorContextLine("result=error")
+			setAdvisorContextLine("error=" + err.Error())
 			os.Exit(1)
 		}
+		setAdvisorContextLine(fmt.Sprintf("namespace=%s", r.Namespace))
+		setAdvisorContextLine(fmt.Sprintf("status=%s", r.Status))
+		setAdvisorContextLine(fmt.Sprintf("health_score=%d", r.HealthScore))
+		setAdvisorContextLine(fmt.Sprintf("pod_count=%d", r.PodCount))
 
 		var content string
 		switch strings.ToLower(reportFormat) {
 		case "json":
+			setAdvisorContextLine("format=json")
 			b, err := json.MarshalIndent(r, "", "  ")
 			if err != nil {
 				fmt.Fprintf(os.Stderr, "❌ Failed to marshal JSON: %v\n", err)
@@ -113,6 +128,7 @@ var reportCmd = &cobra.Command{
 			content = string(b)
 
 		case "html":
+			setAdvisorContextLine("format=html")
 			tmpl, err := template.New("report").Parse(htmlReportTmpl)
 			if err != nil {
 				fmt.Fprintf(os.Stderr, "❌ Failed to parse HTML template: %v\n", err)
@@ -126,6 +142,7 @@ var reportCmd = &cobra.Command{
 			content = buf.String()
 
 		default: // "text"
+			setAdvisorContextLine("format=text")
 			var sb strings.Builder
 			sb.WriteString("KubeAid Debug Report\n")
 			sb.WriteString("====================\n")
@@ -159,21 +176,132 @@ var reportCmd = &cobra.Command{
 		}
 
 		if reportOutput != "" {
+			setAdvisorContextLine("output_file=true")
 			if err := os.WriteFile(reportOutput, []byte(content), 0o644); err != nil {
 				fmt.Fprintf(os.Stderr, "❌ Failed to write report to %s: %v\n", reportOutput, err)
 				os.Exit(1)
 			}
 			fmt.Printf("✅ Report saved to %s\n", reportOutput)
+
+			// Auto-open HTML in browser
+			if reportOpen && strings.ToLower(reportFormat) == "html" {
+				openInBrowser(reportOutput)
+			}
 		} else {
 			fmt.Println(content)
 		}
+
+		// Diff against a previous JSON report
+		if reportDiff != "" {
+			setAdvisorContextLine("diff=true")
+			printDiff(reportDiff, r)
+		}
+
+		// Create a GitHub issue via gh CLI
+		if reportIssue {
+			setAdvisorContextLine("create_issue=true")
+			createGitHubIssue(r)
+		}
 	},
+}
+
+func openInBrowser(path string) {
+	if browser := strings.TrimSpace(os.Getenv("BROWSER")); browser != "" {
+		parts := strings.Fields(browser)
+		if len(parts) > 0 {
+			args := append(parts[1:], path)
+			if err := exec.Command(parts[0], args...).Start(); err == nil {
+				return
+			}
+		}
+	}
+
+	var launcher string
+	switch runtime.GOOS {
+	case "linux":
+		launcher = "xdg-open"
+	case "darwin":
+		launcher = "open"
+	case "windows":
+		launcher = "cmd"
+	default:
+		fmt.Fprintln(os.Stderr, "⚠️  Cannot auto-open browser on this OS")
+		return
+	}
+
+	if _, err := exec.LookPath(launcher); err != nil {
+		fmt.Fprintf(os.Stderr, "⚠️  Could not find browser launcher (%s). Set BROWSER to override.\n", launcher)
+		return
+	}
+
+	var err error
+	if runtime.GOOS == "windows" {
+		err = exec.Command(launcher, "/c", "start", path).Start()
+	} else {
+		err = exec.Command(launcher, path).Start()
+	}
+	if err != nil {
+		fmt.Fprintf(os.Stderr, "⚠️  Failed to open browser: %v\n", err)
+	}
+}
+
+func printDiff(prevFile string, current *analyzer.Report) {
+	data, err := os.ReadFile(prevFile)
+	if err != nil {
+		fmt.Fprintf(os.Stderr, "⚠️  Cannot read diff file: %v\n", err)
+		return
+	}
+	var prev analyzer.Report
+	if err := json.Unmarshal(data, &prev); err != nil {
+		fmt.Fprintf(os.Stderr, "⚠️  Cannot parse diff file as JSON report: %v\n", err)
+		return
+	}
+	fmt.Println("\n── DIFF vs previous report ──────────────────────────────────────")
+	fmt.Printf("  Previous:  health=%d  pods=%d  at=%s\n", prev.HealthScore, prev.PodCount, prev.GeneratedAt.Format(time.RFC3339))
+	fmt.Printf("  Current:   health=%d  pods=%d  at=%s\n", current.HealthScore, current.PodCount, current.GeneratedAt.Format(time.RFC3339))
+	delta := current.HealthScore - prev.HealthScore
+	switch {
+	case delta > 0:
+		fmt.Printf("  ✅ Health score improved by +%d\n", delta)
+	case delta < 0:
+		fmt.Printf("  ❌ Health score dropped by %d\n", delta)
+	default:
+		fmt.Println("  ➡️  Health score unchanged")
+	}
+	podDelta := current.PodCount - prev.PodCount
+	if podDelta != 0 {
+		fmt.Printf("  Pod count changed: %+d (was %d, now %d)\n", podDelta, prev.PodCount, current.PodCount)
+	}
+}
+
+func createGitHubIssue(r *analyzer.Report) {
+	if _, err := exec.LookPath("gh"); err != nil {
+		fmt.Fprintln(os.Stderr, "❌ gh CLI not found. Install from https://cli.github.com")
+		return
+	}
+	title := fmt.Sprintf("[kube-debugger] %s health score: %d/100", r.AppName, r.HealthScore)
+	body := fmt.Sprintf("## KubeAid Debug Report\n\n**App:** %s\n**Namespace:** %s\n**Health Score:** %d/100\n**Generated:** %s\n\n### AI Hint\n%s\n\n### Suggestions\n",
+		r.AppName, r.Namespace, r.HealthScore, r.GeneratedAt.Format(time.RFC3339), r.AIHint)
+	for _, s := range r.Suggestions {
+		body += fmt.Sprintf("- `%s`\n", s)
+	}
+	body += fmt.Sprintf("\n### Last Events\n```\n%s\n```", r.Events)
+
+	cmd := exec.Command("gh", "issue", "create", "--title", title, "--body", body)
+	cmd.Stdout = os.Stdout
+	cmd.Stderr = os.Stderr
+	if err := cmd.Run(); err != nil {
+		fmt.Fprintf(os.Stderr, "❌ Failed to create GitHub issue: %v\n", err)
+	}
 }
 
 func init() {
 	reportCmd.Flags().StringVarP(&reportFormat, "format", "f", "text", "Output format: text, json, html")
 	reportCmd.Flags().StringVarP(&reportOutput, "output", "o", "", "Write report to this file path (default: stdout)")
 	reportCmd.Flags().StringVarP(&reportNamespace, "namespace", "n", "", "Kubernetes namespace (default: \"default\")")
+	reportCmd.Flags().BoolVar(&reportOpen, "open", false, "Auto-open HTML report in browser (requires --output and --format html)")
+	reportCmd.Flags().StringVar(&reportDiff, "diff", "", "Compare against a previous JSON report file")
+	reportCmd.Flags().BoolVar(&reportIssue, "create-issue", false, "Create a GitHub issue via gh CLI")
 	rootCmd.AddCommand(reportCmd)
 }
 

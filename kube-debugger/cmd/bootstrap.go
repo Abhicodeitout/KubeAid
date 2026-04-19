@@ -26,6 +26,9 @@ var bootstrapCmd = &cobra.Command{
 	Short: "Pre-check and optionally set up local AI tooling",
 	Long:  `Checks the local environment and can install/start Ollama across Linux, macOS, and Windows.`,
 	RunE: func(cmd *cobra.Command, args []string) error {
+		setAdvisorContextLine("command=bootstrap")
+		setAdvisorContextLine(fmt.Sprintf("os=%s/%s", runtime.GOOS, runtime.GOARCH))
+		setAdvisorContextLine(fmt.Sprintf("skip_kubeconfig_check=%t", bootstrapSkipKube))
 		fmt.Println("Running environment pre-checks...")
 		fmt.Printf("Detected OS: %s/%s\n", runtime.GOOS, runtime.GOARCH)
 
@@ -36,9 +39,11 @@ var bootstrapCmd = &cobra.Command{
 
 		if !bootstrapSkipKube {
 			if err := checkKubeconfig(); err != nil {
+				setAdvisorContextLine("kubeconfig=missing")
 				return err
 			}
 			fmt.Println("kubeconfig: OK")
+			setAdvisorContextLine("kubeconfig=ok")
 		}
 
 		if bootstrapInstallOllama || bootstrapStartOllama || bootstrapPullModel != "" {
@@ -48,6 +53,7 @@ var bootstrapCmd = &cobra.Command{
 		}
 
 		fmt.Println("All pre-checks passed.")
+		setAdvisorContextLine("result=ok")
 		return nil
 	},
 }
