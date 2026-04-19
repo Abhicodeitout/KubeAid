@@ -102,7 +102,7 @@ func callOllama(cfg LLMConfig, prompt string) (string, error) {
 	if err != nil {
 		return "", fmt.Errorf("ollama request failed: %w", err)
 	}
-	defer resp.Body.Close()
+	defer func() { _ = resp.Body.Close() }()
 
 	raw, err := io.ReadAll(resp.Body)
 	if err != nil {
@@ -168,7 +168,7 @@ func callGroq(cfg LLMConfig, prompt string) (string, error) {
 	if err != nil {
 		return "", fmt.Errorf("groq request failed: %w", err)
 	}
-	defer resp.Body.Close()
+	defer func() { _ = resp.Body.Close() }()
 
 	raw, err := io.ReadAll(resp.Body)
 	if err != nil {

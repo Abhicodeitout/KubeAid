@@ -52,22 +52,22 @@ func computeHealthScore(status, ready string, restarts int32, events string) int
 		// A non-ready primary pod is a strong signal of degraded service.
 		score -= 30
 	}
-	switch {
-	case s == "crashloopbackoff":
+	switch s {
+	case "crashloopbackoff":
 		score -= 60
-	case s == "oomkilled":
+	case "oomkilled":
 		score -= 50
-	case s == "imagepullbackoff" || s == "errimagepull":
+	case "imagepullbackoff", "errimagepull":
 		score -= 50
-	case s == "evicted":
+	case "evicted":
 		score -= 40
-	case s == "terminating":
+	case "terminating":
 		score -= 30
-	case s == "containercreating":
+	case "containercreating":
 		score -= 20
-	case s == "pending":
+	case "pending":
 		score -= 20
-	case s == "running":
+	case "running":
 		// healthy base
 	}
 	// penalise restarts
@@ -217,10 +217,10 @@ func healthColor(score int) lipgloss.Style {
 
 func statusColor(status string) string {
 	s := strings.ToLower(status)
-	switch {
-	case s == "running":
+	switch s {
+	case "running":
 		return styleGreen.Render(status)
-	case s == "pending" || s == "containercreating":
+	case "pending", "containercreating":
 		return styleYellow.Render(status)
 	default:
 		return styleRed.Render(status)

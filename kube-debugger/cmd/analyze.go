@@ -111,7 +111,7 @@ func sendWebhookAlert(url, app, namespace string, score int) {
 		fmt.Fprintf(os.Stderr, "⚠️  Webhook alert failed: %v\n", err)
 		return
 	}
-	resp.Body.Close()
+	_ = resp.Body.Close()
 }
 
 func init() {

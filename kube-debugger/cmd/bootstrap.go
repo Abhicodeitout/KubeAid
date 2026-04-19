@@ -96,7 +96,7 @@ func ensureOllama() error {
 
 	if !installed {
 		if !bootstrapInstallOllama {
-			return fmt.Errorf("Ollama is not installed. Re-run with --install-ollama to install it automatically")
+			return fmt.Errorf("ollama is not installed; re-run with --install-ollama to install it automatically")
 		}
 		fmt.Println("Installing Ollama...")
 		if err := installOllama(); err != nil {
@@ -188,7 +188,7 @@ func waitForOllama(timeout time.Duration) error {
 		}
 		time.Sleep(2 * time.Second)
 	}
-	return fmt.Errorf("Ollama did not become ready within %s", timeout)
+	return fmt.Errorf("ollama did not become ready within %s", timeout)
 }
 
 func ollamaReachable() bool {
@@ -197,7 +197,7 @@ func ollamaReachable() bool {
 	if err != nil {
 		return false
 	}
-	defer resp.Body.Close()
+	defer func() { _ = resp.Body.Close() }()
 	return resp.StatusCode >= 200 && resp.StatusCode < 300
 }
 

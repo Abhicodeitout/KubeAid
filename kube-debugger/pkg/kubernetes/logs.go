@@ -15,7 +15,7 @@ func GetPodLogs(clientset *kubernetes.Clientset, namespace, podName string) (str
 	if err != nil {
 		return "", err
 	}
-	defer podLogs.Close()
+	defer func() { _ = podLogs.Close() }()
 	buf := new(strings.Builder)
 	_, err = io.Copy(buf, podLogs)
 	if err != nil {
@@ -37,7 +37,7 @@ func GetPodPreviousLogs(clientset *kubernetes.Clientset, namespace, podName, con
 	if err != nil {
 		return "", err
 	}
-	defer podLogs.Close()
+	defer func() { _ = podLogs.Close() }()
 	buf := new(strings.Builder)
 	_, err = io.Copy(buf, podLogs)
 	return buf.String(), err

@@ -330,7 +330,7 @@ func StartTUI(namespace string) {
 	_ = analyzer.AnalyzeApp // pre-warm import
 
 	p := tea.NewProgram(initialModel(namespace), tea.WithAltScreen())
-	if err := p.Start(); err != nil {
+	if _, err := p.Run(); err != nil {
 		fmt.Fprintln(os.Stderr, "Error running TUI:", err)
 		os.Exit(1)
 	}

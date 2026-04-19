@@ -146,32 +146,32 @@ var reportCmd = &cobra.Command{
 			var sb strings.Builder
 			sb.WriteString("KubeAid Debug Report\n")
 			sb.WriteString("====================\n")
-			sb.WriteString(fmt.Sprintf("App:          %s\n", r.AppName))
-			sb.WriteString(fmt.Sprintf("Namespace:    %s\n", r.Namespace))
-			sb.WriteString(fmt.Sprintf("Total Pods:   %d\n", r.PodCount))
-			sb.WriteString(fmt.Sprintf("Pod:          %s\n", r.PodName))
-			sb.WriteString(fmt.Sprintf("Status:       %s\n", r.Status))
-			sb.WriteString(fmt.Sprintf("Ready:        %s\n", r.Ready))
-			sb.WriteString(fmt.Sprintf("Restarts:     %d\n", r.RestartCount))
-			sb.WriteString(fmt.Sprintf("Age:          %s\n", r.Age))
-			sb.WriteString(fmt.Sprintf("Health Score: %d/100\n", r.HealthScore))
-			sb.WriteString(fmt.Sprintf("Generated:    %s\n\n", r.GeneratedAt.Format("2006-01-02 15:04:05 UTC")))
+			fmt.Fprintf(&sb, "App:          %s\n", r.AppName)
+			fmt.Fprintf(&sb, "Namespace:    %s\n", r.Namespace)
+			fmt.Fprintf(&sb, "Total Pods:   %d\n", r.PodCount)
+			fmt.Fprintf(&sb, "Pod:          %s\n", r.PodName)
+			fmt.Fprintf(&sb, "Status:       %s\n", r.Status)
+			fmt.Fprintf(&sb, "Ready:        %s\n", r.Ready)
+			fmt.Fprintf(&sb, "Restarts:     %d\n", r.RestartCount)
+			fmt.Fprintf(&sb, "Age:          %s\n", r.Age)
+			fmt.Fprintf(&sb, "Health Score: %d/100\n", r.HealthScore)
+			fmt.Fprintf(&sb, "Generated:    %s\n\n", r.GeneratedAt.Format("2006-01-02 15:04:05 UTC"))
 			if len(r.Pods) > 1 {
 				sb.WriteString("--- All Pods ---\n")
-				sb.WriteString(fmt.Sprintf("%-42s %-16s %-6s %-9s %s\n", "POD", "STATUS", "READY", "RESTARTS", "AGE"))
+				fmt.Fprintf(&sb, "%-42s %-16s %-6s %-9s %s\n", "POD", "STATUS", "READY", "RESTARTS", "AGE")
 				for _, p := range r.Pods {
-					sb.WriteString(fmt.Sprintf("%-42s %-16s %-6s %-9d %s\n", p.Name, p.Status, p.Ready, p.RestartCount, p.Age))
+					fmt.Fprintf(&sb, "%-42s %-16s %-6s %-9d %s\n", p.Name, p.Status, p.Ready, p.RestartCount, p.Age)
 				}
 				sb.WriteString("\n")
 			}
-			sb.WriteString(fmt.Sprintf("AI Hint:\n%s\n\n", r.AIHint))
+			fmt.Fprintf(&sb, "AI Hint:\n%s\n\n", r.AIHint)
 			sb.WriteString("Suggestions:\n")
 			for _, s := range r.Suggestions {
-				sb.WriteString(fmt.Sprintf("  - %s\n", s))
+				fmt.Fprintf(&sb, "  - %s\n", s)
 			}
-			sb.WriteString(fmt.Sprintf("\nLast Logs:\n%s\n", r.Logs))
-			sb.WriteString(fmt.Sprintf("\nEvents:\n%s\n", r.Events))
-			sb.WriteString(fmt.Sprintf("\nResource Usage:\n%s\n", r.Resources))
+			fmt.Fprintf(&sb, "\nLast Logs:\n%s\n", r.Logs)
+			fmt.Fprintf(&sb, "\nEvents:\n%s\n", r.Events)
+			fmt.Fprintf(&sb, "\nResource Usage:\n%s\n", r.Resources)
 			content = sb.String()
 		}
 
