@@ -24,22 +24,22 @@ type PodSummary struct {
 
 // Report holds structured analysis data for a Kubernetes app.
 type Report struct {
-	AppName     string       `json:"app_name"`
-	Namespace   string       `json:"namespace"`
-	PodCount    int          `json:"pod_count"`
-	Pods        []PodSummary `json:"pods"`
+	AppName   string       `json:"app_name"`
+	Namespace string       `json:"namespace"`
+	PodCount  int          `json:"pod_count"`
+	Pods      []PodSummary `json:"pods"`
 	// Primary pod (most relevant / most troubled)
-	PodName      string   `json:"pod_name"`
-	Status       string   `json:"status"`
-	Ready        string   `json:"ready"`
-	RestartCount int32    `json:"restart_count"`
-	Age          string   `json:"age"`
-	HealthScore  int      `json:"health_score"`
-	Logs         string   `json:"logs"`
-	Events       string   `json:"events"`
-	Resources    string   `json:"resources"`
-	AIHint       string   `json:"ai_hint"`
-	Suggestions  []string `json:"suggestions"`
+	PodName      string    `json:"pod_name"`
+	Status       string    `json:"status"`
+	Ready        string    `json:"ready"`
+	RestartCount int32     `json:"restart_count"`
+	Age          string    `json:"age"`
+	HealthScore  int       `json:"health_score"`
+	Logs         string    `json:"logs"`
+	Events       string    `json:"events"`
+	Resources    string    `json:"resources"`
+	AIHint       string    `json:"ai_hint"`
+	Suggestions  []string  `json:"suggestions"`
 	GeneratedAt  time.Time `json:"generated_at"`
 }
 
@@ -101,6 +101,36 @@ func podAge(creationTime metav1.Time) string {
 	return fmt.Sprintf("%.0fm", d.Minutes())
 }
 
+func podTroubleScore(status, ready string, restarts int32) int {
+	s := strings.ToLower(strings.TrimSpace(status))
+	score := 0
+
+	switch s {
+	case "crashloopbackoff":
+		score += 120
+	case "oomkilled", "imagepullbackoff", "errimagepull", "runcontainererror":
+		score += 100
+	case "evicted", "failed":
+		score += 80
+	case "pending", "containercreating", "terminating":
+		score += 50
+	case "running":
+		// healthy baseline
+	default:
+		score += 60
+	}
+
+	if strings.TrimSpace(strings.ToLower(ready)) != "1/1" {
+		score += 40
+	}
+
+	restartPenalty := int(restarts) * 3
+	if restartPenalty > 60 {
+		restartPenalty = 60
+	}
+	return score + restartPenalty
+}
+
 // AnalyzeAppReport performs analysis and returns a structured Report.
 func AnalyzeAppReport(appName, namespace string) (*Report, error) {
 	if namespace == "" {
@@ -123,6 +153,7 @@ func AnalyzeAppReport(appName, namespace string) (*Report, error) {
 	// Build pod summaries and pick the "primary" pod — prefer most troubled one
 	var summaries []PodSummary
 	primaryIdx := 0
+	bestScore := -1
 	for i, p := range podList.Items {
 		st := string(p.Status.Phase)
 		if len(p.Status.ContainerStatuses) > 0 && p.Status.ContainerStatuses[0].State.Waiting != nil {
@@ -143,8 +174,10 @@ func AnalyzeAppReport(appName, namespace string) (*Report, error) {
 			RestartCount: rc,
 			Age:          podAge(p.CreationTimestamp),
 		})
-		// prefer troubled pods over healthy ones
-		if rc > summaries[primaryIdx].RestartCount || strings.ToLower(st) != "running" {
+
+		troubleScore := podTroubleScore(st, ready, rc)
+		if troubleScore > bestScore {
+			bestScore = troubleScore
 			primaryIdx = i
 		}
 	}
@@ -408,4 +441,3 @@ func DetectCrashLoops(namespace string) ([]CrashLoopInfo, error) {
 	}
 	return results, nil
 }
-

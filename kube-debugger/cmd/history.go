@@ -31,12 +31,29 @@ var clearHistoryCmd = &cobra.Command{
 	Args:  cobra.MaximumNArgs(1),
 	Run: func(cmd *cobra.Command, args []string) {
 		setAdvisorContextLine("command=history clear")
-		dataFile := history.DataFilePath()
-		if err := os.Remove(dataFile); err != nil && !os.IsNotExist(err) {
+		app := ""
+		if len(args) == 1 {
+			app = args[0]
+			setAdvisorContextLine("app=" + app)
+		}
+		if historyNamespace != "" {
+			setAdvisorContextLine("namespace=" + historyNamespace)
+		}
+
+		removed, err := history.Clear(app, historyNamespace)
+		if err != nil {
 			fmt.Fprintf(os.Stderr, "❌ %v\n", err)
 			os.Exit(1)
 		}
-		fmt.Println("✅ History cleared.")
+		if removed == 0 {
+			fmt.Println("ℹ️ No matching history entries found.")
+			return
+		}
+		if app == "" {
+			fmt.Printf("✅ Cleared %d history entries.\n", removed)
+			return
+		}
+		fmt.Printf("✅ Cleared %d history entries for app '%s'.\n", removed, app)
 	},
 }
 

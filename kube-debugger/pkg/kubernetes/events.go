@@ -3,12 +3,17 @@ package kubernetes
 import (
 	"context"
 	"fmt"
-	"k8s.io/client-go/kubernetes"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
+	"k8s.io/apimachinery/pkg/fields"
+	"k8s.io/client-go/kubernetes"
 )
 
 func GetPodEvents(clientset *kubernetes.Clientset, namespace, podName string) (string, error) {
-	events, err := clientset.CoreV1().Events(namespace).List(context.TODO(), metav1.ListOptions{})
+	selector := fields.AndSelectors(
+		fields.OneTermEqualSelector("involvedObject.kind", "Pod"),
+		fields.OneTermEqualSelector("involvedObject.name", podName),
+	).String()
+	events, err := clientset.CoreV1().Events(namespace).List(context.TODO(), metav1.ListOptions{FieldSelector: selector})
 	if err != nil {
 		return "", err
 	}

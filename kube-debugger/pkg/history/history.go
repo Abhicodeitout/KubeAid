@@ -7,6 +7,7 @@ import (
 	"fmt"
 	"os"
 	"path/filepath"
+	"strings"
 	"time"
 )
 
@@ -65,11 +66,77 @@ func Record(app, namespace string, score int) {
 		HealthScore: score,
 		RecordedAt:  time.Now().UTC(),
 	})
-	// cap at 1000 total
-	if len(entries) > 1000 {
-		entries = entries[len(entries)-1000:]
-	}
+	entries = capEntriesPerApp(entries, 200)
 	_ = save(entries)
+}
+
+// Clear removes history entries for a single app (and optional namespace).
+// If app is empty, it clears all history.
+func Clear(app, namespace string) (int, error) {
+	entries, err := load()
+	if err != nil {
+		return 0, err
+	}
+	if len(entries) == 0 {
+		return 0, nil
+	}
+
+	app = strings.TrimSpace(app)
+	namespace = strings.TrimSpace(namespace)
+
+	if app == "" {
+		if err := os.Remove(dataFile()); err != nil && !os.IsNotExist(err) {
+			return 0, err
+		}
+		return len(entries), nil
+	}
+
+	kept := make([]Entry, 0, len(entries))
+	removed := 0
+	for _, e := range entries {
+		matchesApp := e.App == app
+		matchesNS := namespace == "" || e.Namespace == namespace
+		if matchesApp && matchesNS {
+			removed++
+			continue
+		}
+		kept = append(kept, e)
+	}
+
+	if removed == 0 {
+		return 0, nil
+	}
+
+	if len(kept) == 0 {
+		if err := os.Remove(dataFile()); err != nil && !os.IsNotExist(err) {
+			return 0, err
+		}
+		return removed, nil
+	}
+
+	return removed, save(kept)
+}
+
+func capEntriesPerApp(entries []Entry, perApp int) []Entry {
+	if perApp <= 0 || len(entries) == 0 {
+		return entries
+	}
+
+	counts := make(map[string]int)
+	keptReversed := make([]Entry, 0, len(entries))
+	for i := len(entries) - 1; i >= 0; i-- {
+		e := entries[i]
+		if counts[e.App] >= perApp {
+			continue
+		}
+		counts[e.App]++
+		keptReversed = append(keptReversed, e)
+	}
+
+	for i, j := 0, len(keptReversed)-1; i < j; i, j = i+1, j-1 {
+		keptReversed[i], keptReversed[j] = keptReversed[j], keptReversed[i]
+	}
+	return keptReversed
 }
 
 // GetHistory returns all entries for a given app+namespace, oldest first.

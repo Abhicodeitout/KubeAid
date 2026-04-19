@@ -54,3 +54,16 @@ func TestComputeHealthScoreReadyPenalty(t *testing.T) {
 		})
 	}
 }
+
+func TestPodTroubleScoreOrdering(t *testing.T) {
+	crashLoop := podTroubleScore("CrashLoopBackOff", "0/1", 3)
+	pending := podTroubleScore("Pending", "0/1", 0)
+	running := podTroubleScore("Running", "1/1", 5)
+
+	if crashLoop <= pending {
+		t.Fatalf("expected crashloop score (%d) to be greater than pending (%d)", crashLoop, pending)
+	}
+	if pending <= running {
+		t.Fatalf("expected pending score (%d) to be greater than running (%d)", pending, running)
+	}
+}
