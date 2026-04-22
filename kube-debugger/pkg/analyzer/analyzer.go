@@ -40,6 +40,7 @@ type Report struct {
 	Resources    string    `json:"resources"`
 	AIHint       string    `json:"ai_hint"`
 	Suggestions  []string  `json:"suggestions"`
+	CopilotFix   string    `json:"copilot_fix"`   // Copilot-style structured suggestion
 	GeneratedAt  time.Time `json:"generated_at"`
 }
 
@@ -208,6 +209,7 @@ func AnalyzeAppReport(appName, namespace string) (*Report, error) {
 		Events:       events,
 		Resources:    resources,
 		AIHint:       diagnostics.AnalyzeWithContext(appName, namespace, ps.Name, ps.Status, ps.RestartCount, logs, events),
+		CopilotFix:   formatCopilotSuggestion(appName, namespace, ps.Name, ps.Status, ps.RestartCount, logs, events),
 		Suggestions:  diagnostics.SuggestFixForPod(ps.Status, lastError, ps.Name, namespace),
 		GeneratedAt:  time.Now().UTC(),
 	}, nil
@@ -321,6 +323,12 @@ func renderReport(r *Report) string {
 	// ── AI Hint ──────────────────────────────────────────────────────────────
 	b.WriteString(divider("AI ANALYSIS"))
 	b.WriteString("  " + styleHint.Render(r.AIHint) + "\n")
+
+	// ── Copilot Fix ──────────────────────────────────────────────────────────
+	if r.CopilotFix != "" {
+		b.WriteString(divider("🤖 COPILOT FIX"))
+		b.WriteString(r.CopilotFix + "\n")
+	}
 
 	// ── Suggestions ──────────────────────────────────────────────────────────
 	b.WriteString(divider("SUGGESTIONS"))
@@ -440,4 +448,13 @@ func DetectCrashLoops(namespace string) ([]CrashLoopInfo, error) {
 		}
 	}
 	return results, nil
+}
+
+// formatCopilotSuggestion generates Copilot-style structured suggestions
+func formatCopilotSuggestion(appName, namespace, podName, status string, restarts int32, logs, events string) string {
+	suggestion := diagnostics.EnhancedAnalyzeWithContext(appName, namespace, podName, status, restarts, logs, events)
+	if suggestion == nil {
+		return ""
+	}
+	return suggestion.Format()
 }
