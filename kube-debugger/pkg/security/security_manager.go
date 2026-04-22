@@ -40,7 +40,7 @@ func InitSecurityManager(auditDir, configDir string, enableAudit, filterOutput b
 		}
 
 		// Log initialization
-		globalSecurityManager.auditLogger.LogSecurityEvent("security_manager_initialized", "info", map[string]interface{}{
+		_ = globalSecurityManager.auditLogger.LogSecurityEvent("security_manager_initialized", "info", map[string]interface{}{
 			"audit_enabled": enableAudit,
 			"filter_output": filterOutput,
 		})
@@ -66,7 +66,7 @@ func GetSecurityManager() *SecurityManager {
 // ValidateInput validates input before processing
 func (sm *SecurityManager) ValidateInput(appName, namespace string) error {
 	if err := ValidateAppName(appName); err != nil {
-		sm.auditLogger.LogSecurityEvent("input_validation_failed", "warning", map[string]interface{}{
+		_ = sm.auditLogger.LogSecurityEvent("input_validation_failed", "warning", map[string]interface{}{
 			"error": err.Error(),
 			"app":   appName,
 		})
@@ -75,7 +75,7 @@ func (sm *SecurityManager) ValidateInput(appName, namespace string) error {
 
 	if namespace != "" {
 		if err := ValidateNamespace(namespace); err != nil {
-			sm.auditLogger.LogSecurityEvent("input_validation_failed", "warning", map[string]interface{}{
+			_ = sm.auditLogger.LogSecurityEvent("input_validation_failed", "warning", map[string]interface{}{
 				"error":     err.Error(),
 				"namespace": namespace,
 			})

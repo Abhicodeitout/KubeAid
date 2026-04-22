@@ -1,7 +1,6 @@
 package prediction
 
 import (
-	"fmt"
 	"time"
 
 	"kube-debugger/pkg/metrics"
@@ -49,9 +48,7 @@ func (fp *FailurePredictor) PredictOOMKill() *PredictedFailure {
 			TimeToEvent:     time.Duration(hoursToOOM) * time.Hour,
 			Severity:        "critical",
 			ConfidenceScore: 0.75,
-			RecommendedAction: fmt.Sprintf(
-				"Increase memory limit from 512Mi to 1Gi, check for memory leak in appcode",
-			),
+			RecommendedAction: "Increase memory limit from 512Mi to 1Gi, check for memory leak in appcode",
 		}
 	}
 

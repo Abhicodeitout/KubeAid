@@ -165,7 +165,7 @@ func (rc *RequestCounter) Increment(identifier string) error {
 	defer rc.mu.Unlock()
 
 	// Check if reset interval has passed
-	if time.Now().Sub(rc.resetTime) > rc.resetInterval {
+	if time.Since(rc.resetTime) > rc.resetInterval {
 		rc.counts = make(map[string]int)
 		rc.resetTime = time.Now()
 	}

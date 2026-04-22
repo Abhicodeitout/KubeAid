@@ -18,7 +18,6 @@ type Alert struct {
 
 // AlertManager manages alerts and sends them through multiple channels
 type AlertManager struct {
-	webhooks   []string
 	channels   map[string]AlertChannel
 	dedup      *AlertDeduplicator
 	throttler  *AlertThrottler

@@ -163,7 +163,9 @@ func ValidateTLSConnection(host string, port string) error {
 	if err != nil {
 		return fmt.Errorf("failed to establish TLS connection to %s: %w", addr, err)
 	}
-	defer conn.Close()
+	defer func() {
+		_ = conn.Close()
+	}()
 
 	// Get peer certificate chain
 	certs := conn.ConnectionState().PeerCertificates

@@ -85,7 +85,6 @@ func (s *SlackIntegration) IsConfigured() bool {
 // PagerDutyIntegration sends alerts to PagerDuty
 type PagerDutyIntegration struct {
 	apiKey string
-	enabled bool
 }
 
 // NewPagerDutyIntegration creates a PagerDuty integration

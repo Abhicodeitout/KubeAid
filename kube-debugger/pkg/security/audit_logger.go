@@ -105,7 +105,9 @@ func (al *AuditLogger) LogEvent(event *AuditEvent) error {
 	if err != nil {
 		return fmt.Errorf("failed to open audit log: %w", err)
 	}
-	defer f.Close()
+	defer func() {
+		_ = f.Close()
+	}()
 
 	_, err = f.WriteString(string(data) + "\n")
 	return err
@@ -130,7 +132,7 @@ func (al *AuditLogger) rotateIfNeeded() error {
 		oldName := fmt.Sprintf("%s.%d", al.logFile, i)
 		newName := fmt.Sprintf("%s.%d", al.logFile, i+1)
 		if _, err := os.Stat(oldName); err == nil {
-			os.Rename(oldName, newName)
+			_ = os.Rename(oldName, newName)
 		}
 	}
 

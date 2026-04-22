@@ -28,7 +28,6 @@ type RemediationHandler interface {
 
 // AutoRemediation manages automatic remediation
 type AutoRemediation struct {
-	client       kubernetes.Interface
 	handlers     map[string]RemediationHandler
 	dryRun       bool
 	requireApproval bool
@@ -38,7 +37,6 @@ type AutoRemediation struct {
 // New creates a new auto-remediation manager
 func New(client kubernetes.Interface, dryRun, requireApproval bool) *AutoRemediation {
 	return &AutoRemediation{
-		client:          client,
 		handlers:        make(map[string]RemediationHandler),
 		dryRun:          dryRun,
 		requireApproval: requireApproval,
@@ -90,7 +88,6 @@ func (h *RestartPodHandler) Verify(ctx context.Context, namespace, podName strin
 
 // IncreaseMemoryHandler increases memory limits
 type IncreaseMemoryHandler struct {
-	client kubernetes.Interface
 }
 
 // CanHandle checks if pod has memory issues
@@ -121,7 +118,6 @@ func (h *IncreaseMemoryHandler) Verify(ctx context.Context, namespace, podName s
 
 // ScaleUpHandler scales up deployment
 type ScaleUpHandler struct {
-	client kubernetes.Interface
 }
 
 // CanHandle checks if scaling is needed

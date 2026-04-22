@@ -113,9 +113,10 @@ func (cm *ClusterManager) AnalyzeCluster(ctx context.Context, clusterName string
 	}
 
 	for _, pod := range pods.Items {
-		if pod.Status.Phase == corev1.PodFailed || pod.Status.Phase == corev1.PodUnknown {
+		switch pod.Status.Phase {
+		case corev1.PodFailed, corev1.PodUnknown:
 			analysis.FailingPods++
-		} else if pod.Status.Phase == corev1.PodPending {
+		case corev1.PodPending:
 			analysis.WarningPods++
 		}
 	}

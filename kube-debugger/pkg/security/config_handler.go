@@ -65,7 +65,7 @@ func (ch *ConfigHandler) SecureKubeconfig() error {
 		return fmt.Errorf("failed to secure kubeconfig permissions: %w", err)
 	}
 
-	ch.auditLog.LogSecurityEvent("kubeconfig_secured", "info", map[string]interface{}{
+	_ = ch.auditLog.LogSecurityEvent("kubeconfig_secured", "info", map[string]interface{}{
 		"path": kubeconfigPath,
 	})
 
@@ -163,7 +163,7 @@ func (ch *ConfigHandler) LoadSecureConfig(filename string) (string, error) {
 
 	// Redact secrets before logging
 	redactedData := RedactSecrets(string(data))
-	ch.auditLog.LogSecurityEvent("config_loaded", "info", map[string]interface{}{
+	_ = ch.auditLog.LogSecurityEvent("config_loaded", "info", map[string]interface{}{
 		"path": configPath,
 		"data": redactedData,
 	})
@@ -190,7 +190,7 @@ func (ch *ConfigHandler) SaveSecureConfig(filename, content string) error {
 		return fmt.Errorf("failed to write config file: %w", err)
 	}
 
-	ch.auditLog.LogSecurityEvent("config_saved", "info", map[string]interface{}{
+	_ = ch.auditLog.LogSecurityEvent("config_saved", "info", map[string]interface{}{
 		"path": configPath,
 	})
 

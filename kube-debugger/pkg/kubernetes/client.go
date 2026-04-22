@@ -42,12 +42,12 @@ func GetKubeConfig() (*rest.Config, error) {
 		// Preserve kubeconfig CA/cert settings and only control insecure verify flag.
 		if security.IsInsecureSkipVerifyEnabled() {
 			// client-go rejects configs that set both Insecure=true and root CA data.
-			config.TLSClientConfig.Insecure = true
-			config.TLSClientConfig.CAFile = ""
-			config.TLSClientConfig.CAData = nil
+			config.Insecure = true
+			config.CAFile = ""
+			config.CAData = nil
 			security.WarnIfInsecureSkipVerify()
 		} else {
-			config.TLSClientConfig.Insecure = false
+			config.Insecure = false
 		}
 
 		return config, nil
@@ -58,7 +58,7 @@ func GetKubeConfig() (*rest.Config, error) {
 func GetKubeClient() (*kubernetes.Clientset, error) {
 	// Apply rate limiting
 	secMgr := security.GetSecurityManager()
-	secMgr.EnforceRateLimit("kubernetes_client_creation")
+	_ = secMgr.EnforceRateLimit("kubernetes_client_creation")
 
 	config, err := GetKubeConfig()
 	if err != nil {

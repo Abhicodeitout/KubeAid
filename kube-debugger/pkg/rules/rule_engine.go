@@ -221,7 +221,7 @@ func (re *RuleEngine) getContextValue(ctx EvaluationContext, field string) inter
 // CreateDefaultRules creates commonly used rules
 func (re *RuleEngine) CreateDefaultRules() {
 	// High restart rate
-	re.AddRule(&Rule{
+	_ = re.AddRule(&Rule{
 		ID:          "high-restart-rate",
 		Name:        "High Pod Restart Rate",
 		Description: "Alert when pod restarts > 5",
@@ -234,7 +234,7 @@ func (re *RuleEngine) CreateDefaultRules() {
 	})
 
 	// Memory pressure
-	re.AddRule(&Rule{
+	_ = re.AddRule(&Rule{
 		ID:          "memory-pressure",
 		Name:        "High Memory Usage",
 		Description: "Alert when memory usage > 80%",
@@ -247,7 +247,7 @@ func (re *RuleEngine) CreateDefaultRules() {
 	})
 
 	// CPU throttling
-	re.AddRule(&Rule{
+	_ = re.AddRule(&Rule{
 		ID:          "cpu-throttling",
 		Name:        "High CPU Usage",
 		Description: "Alert when CPU usage > 90%",
@@ -260,7 +260,7 @@ func (re *RuleEngine) CreateDefaultRules() {
 	})
 
 	// Replica mismatch
-	re.AddRule(&Rule{
+	_ = re.AddRule(&Rule{
 		ID:          "low-replicas",
 		Name:        "Low Replica Count",
 		Description: "Scale up when replicas < 2",

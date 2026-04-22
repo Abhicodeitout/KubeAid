@@ -49,8 +49,8 @@ func GetPodResourceUsage(clientset *kubernetes.Clientset, namespace, podName str
 	}
 
 	var b strings.Builder
-	b.WriteString(fmt.Sprintf("CPU: %dm\n", totalMilliCPU))
-	b.WriteString(fmt.Sprintf("Memory: %s\n", formatBytesBinary(totalMemoryBytes)))
+	_, _ = fmt.Fprintf(&b, "CPU: %dm\n", totalMilliCPU)
+	_, _ = fmt.Fprintf(&b, "Memory: %s\n", formatBytesBinary(totalMemoryBytes))
 	b.WriteString("Container Breakdown:\n")
 	for _, line := range perContainer {
 		b.WriteString("- " + line + "\n")

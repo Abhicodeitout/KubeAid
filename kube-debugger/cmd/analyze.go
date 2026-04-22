@@ -37,7 +37,7 @@ var analyzeCmd = &cobra.Command{
 		// Validate inputs
 		if err := security.ValidateAppName(appName); err != nil {
 			fmt.Fprintf(os.Stderr, "❌ Invalid app name: %v\n", err)
-			secMgr.LogCommand("analyze", args, appName, analyzeNamespace, err)
+			_ = secMgr.LogCommand("analyze", args, appName, analyzeNamespace, err)
 			requestExitCode(1)
 			return
 		}
@@ -45,7 +45,7 @@ var analyzeCmd = &cobra.Command{
 		if analyzeNamespace != "" {
 			if err := security.ValidateNamespace(analyzeNamespace); err != nil {
 				fmt.Fprintf(os.Stderr, "❌ Invalid namespace: %v\n", err)
-				secMgr.LogCommand("analyze", args, appName, analyzeNamespace, err)
+				_ = secMgr.LogCommand("analyze", args, appName, analyzeNamespace, err)
 				requestExitCode(1)
 				return
 			}
@@ -93,7 +93,7 @@ var analyzeCmd = &cobra.Command{
 				fmt.Fprintf(os.Stderr, "❌ %v\n", err)
 				setAdvisorContextLine("result=error")
 				setAdvisorContextLine("error=" + err.Error())
-				secMgr.LogCommand("analyze", args, appName, analyzeNamespace, err)
+				_ = secMgr.LogCommand("analyze", args, appName, analyzeNamespace, err)
 				requestExitCode(1)
 				return 0, true
 			}
@@ -109,7 +109,7 @@ var analyzeCmd = &cobra.Command{
 			setAdvisorContextLine(fmt.Sprintf("pod_count=%d", r.PodCount))
 
 			// Log successful analysis
-			secMgr.LogCommand("analyze", args, appName, r.Namespace, nil)
+			_ = secMgr.LogCommand("analyze", args, appName, r.Namespace, nil)
 
 			// Save to history
 			history.Record(appName, r.Namespace, r.HealthScore)

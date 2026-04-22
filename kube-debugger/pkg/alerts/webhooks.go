@@ -70,7 +70,9 @@ func (w *WebhookChannel) Send(alert Alert) error {
 	if err != nil {
 		return err
 	}
-	defer resp.Body.Close()
+	defer func() {
+		_ = resp.Body.Close()
+	}()
 	return nil
 }
 
@@ -87,9 +89,10 @@ func (s *SlackChannel) Name() string {
 // Send sends alert to Slack
 func (s *SlackChannel) Send(alert Alert) error {
 	color := "#36a64f" // green
-	if alert.Severity == SeverityCritical {
+	switch alert.Severity {
+	case SeverityCritical:
 		color = "#ff0000" // red
-	} else if alert.Severity == SeverityWarning {
+	case SeverityWarning:
 		color = "#ffaa00" // orange
 	}
 
@@ -99,7 +102,7 @@ func (s *SlackChannel) Send(alert Alert) error {
 				"color":      color,
 				"title":      alert.Title,
 				"text":       alert.Message,
-				"fields": []map[string]string{
+				"fields": []map[string]interface{}{
 					{"title": "App", "value": alert.AppName, "short": true},
 					{"title": "Namespace", "value": alert.Namespace, "short": true},
 					{"title": "Severity", "value": alert.Severity, "short": true},
@@ -115,7 +118,9 @@ func (s *SlackChannel) Send(alert Alert) error {
 	if err != nil {
 		return err
 	}
-	defer resp.Body.Close()
+	defer func() {
+		_ = resp.Body.Close()
+	}()
 	return nil
 }
 
