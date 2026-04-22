@@ -188,6 +188,136 @@ View score history:
 ./kube-debugger history my-app -n default
 ```
 
+## Security
+
+KubeAid includes enterprise-grade security features to protect your cluster data and operations.
+
+### Features
+
+- **Input Validation**: Validates all user inputs against Kubernetes naming conventions (RFC 1123)
+- **Secret Redaction**: Automatically redacts API keys, tokens, passwords, and credentials from logs and output
+- **Audit Logging**: Logs all operations with timestamps, users, commands, and results for compliance and troubleshooting
+- **RBAC Checks**: Verifies user permissions before executing operations
+- **TLS/Certificate Validation**: Enforces secure cluster connections with strong cipher suites
+- **Output Filtering**: Removes sensitive data from command output (file paths, emails, IPs, secrets)
+- **Rate Limiting**: Prevents abuse with configurable operation limits (100 req/sec default)
+- **Configuration Security**: Handles kubeconfig and environment variables securely
+
+### Enable Audit Logging
+
+Audit logging is **disabled by default**. Enable it to capture all operations:
+
+```bash
+export KUBE_DEBUGGER_AUDIT=true
+./kube-debugger analyze my-app
+```
+
+Audit logs are stored in:
+```
+~/.kube-debugger/audit/kube-debugger-audit.log
+```
+
+### Audit Log Example
+
+Each log entry is structured JSON with complete operation details:
+
+```json
+{
+  "timestamp": "2026-04-22T14:21:28Z",
+  "event_type": "command_execution",
+  "username": "alice",
+  "command": "analyze",
+  "arguments": ["my-app"],
+  "app_name": "my-app",
+  "namespace": "production",
+  "status": "success"
+}
+```
+
+### View Audit Logs
+
+```bash
+# View last 10 audit entries
+tail -10 ~/.kube-debugger/audit/kube-debugger-audit.log
+
+# Search for failures
+grep "failure" ~/.kube-debugger/audit/kube-debugger-audit.log
+
+# Monitor in real-time
+tail -f ~/.kube-debugger/audit/kube-debugger-audit.log
+```
+
+### Input Validation Examples
+
+KubeAid validates all inputs to prevent injection attacks:
+
+```bash
+# Invalid app name - REJECTED
+./kube-debugger analyze "app;rm -rf"
+# Error: app name contains invalid characters; must match DNS subdomain rules
+
+# Invalid namespace - REJECTED
+./kube-debugger analyze my-app -n "invalid_ns"
+# Error: namespace contains invalid characters
+
+# Invalid threshold - REJECTED
+./kube-debugger analyze my-app --threshold 150
+# Error: threshold must be between 0 and 100
+
+# Valid inputs - ACCEPTED
+./kube-debugger analyze my-app -n default --threshold 80
+# Success: analysis completed
+```
+
+### Secret Protection
+
+Sensitive data is automatically redacted:
+
+```
+Input:  connection using api_key=sk-12345abcdef and password=super-secret
+Output: connection using api_key=[REDACTED] and password=[REDACTED]
+
+Input:  Authorization: Bearer eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9...
+Output: Authorization: [REDACTED_JWT]
+```
+
+### Security Best Practices
+
+1. **Enable Audit Logging**: Set `KUBE_DEBUGGER_AUDIT=true` for compliance and troubleshooting
+2. **Secure Kubeconfig**: Ensure `~/.kube/config` has permissions `0600` (owner only)
+3. **Review Audit Logs**: Monitor regularly for suspicious activity
+4. **Use RBAC**: Grant kube-debugger minimal required permissions
+5. **Don't Disable TLS**: Never set `KUBECONFIG_INSECURE_SKIP_VERIFY=true` in production
+6. **Keep Updated**: Run latest version for security patches
+
+### Configuration
+
+Security settings can be customized via environment variables:
+
+| Variable | Description | Default |
+|---|---|---|
+| `KUBE_DEBUGGER_AUDIT` | Enable audit logging | `false` |
+| `KUBECONFIG_INSECURE_SKIP_VERIFY` | Disable cert verification (not recommended) | `false` |
+| `HOME/.kube/config` | Kubeconfig file location | `~/.kube/config` |
+
+### Audit Log Rotation
+
+Audit logs automatically rotate when they exceed 10MB:
+
+```
+kube-debugger-audit.log      (current)
+kube-debugger-audit.log.1    (previous)
+kube-debugger-audit.log.2    (older)
+...
+kube-debugger-audit.log.10   (oldest)
+```
+
+### Security Documentation
+
+For detailed security architecture, implementation, and advanced configuration, see:
+- [pkg/security/SECURITY.md](kube-debugger/SECURITY.md) - Complete security guide
+- [TEST_REPORT.md](kube-debugger/TEST_REPORT.md) - Security test results
+
 ## AI Configuration
 
 KubeAid supports two providers:

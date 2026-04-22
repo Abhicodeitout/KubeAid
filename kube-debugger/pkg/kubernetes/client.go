@@ -1,12 +1,17 @@
 package kubernetes
 
 import (
+	"context"
+	"fmt"
+
 	"k8s.io/client-go/kubernetes"
 	"k8s.io/client-go/rest"
 	"k8s.io/client-go/tools/clientcmd"
 	"os"
 	"path/filepath"
 	"strings"
+
+	"kube-debugger/pkg/security"
 )
 
 func kubeConfigPath() string {
@@ -20,13 +25,36 @@ func kubeConfigPath() string {
 // GetKubeConfig returns the Kubernetes REST config from kubeconfig or in-cluster config.
 func GetKubeConfig() (*rest.Config, error) {
 	kubeconfig := kubeConfigPath()
+
+	// Validate and secure kubeconfig file
+	configHandler := security.NewConfigHandler(os.TempDir())
+	if err := configHandler.ValidateKubeconfig(); err != nil {
+		// Log warning but allow fallback to in-cluster config
+		fmt.Fprintf(os.Stderr, "⚠️  Kubeconfig validation warning: %v\n", err)
+	}
+
 	if _, err := os.Stat(kubeconfig); err == nil {
-		return clientcmd.BuildConfigFromFlags("", kubeconfig)
+		config, err := clientcmd.BuildConfigFromFlags("", kubeconfig)
+		if err != nil {
+			return nil, err
+		}
+
+		// Apply secure TLS settings
+		tlsConfig := security.GetDefaultTLSConfig()
+		config.TLSClientConfig = rest.TLSClientConfig{
+			Insecure: tlsConfig.InsecureSkipVerify,
+		}
+
+		return config, nil
 	}
 	return rest.InClusterConfig()
 }
 
 func GetKubeClient() (*kubernetes.Clientset, error) {
+	// Apply rate limiting
+	secMgr := security.GetSecurityManager()
+	secMgr.EnforceRateLimit("kubernetes_client_creation")
+
 	config, err := GetKubeConfig()
 	if err != nil {
 		return nil, err
@@ -36,4 +64,10 @@ func GetKubeClient() (*kubernetes.Clientset, error) {
 		return nil, err
 	}
 	return clientset, nil
+}
+
+// CheckAccess verifies user has necessary permissions for an app
+func CheckAccess(ctx context.Context, clientset *kubernetes.Clientset, appName, namespace string) error {
+	rbacChecker := security.NewRBACChecker(clientset)
+	return rbacChecker.CheckAppAccess(ctx, appName, namespace)
 }

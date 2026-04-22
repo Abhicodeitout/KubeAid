@@ -2,8 +2,11 @@ package cmd
 
 import (
 	"os"
+	"path/filepath"
 	"strings"
+
 	"github.com/spf13/cobra"
+	"kube-debugger/pkg/security"
 )
 
 var rootCmd = &cobra.Command{
@@ -11,6 +14,15 @@ var rootCmd = &cobra.Command{
 	Short: "Smart Kubernetes Debug CLI",
 	Long:  `Diagnose and fix Kubernetes pod issues instantly.`,
 	PersistentPreRun: func(cmd *cobra.Command, args []string) {
+		// Initialize security manager
+		auditDir := filepath.Join(os.Getenv("HOME"), ".kube-debugger", "audit")
+		configDir := filepath.Join(os.Getenv("HOME"), ".kube-debugger", "config")
+		enableAudit := os.Getenv("KUBE_DEBUGGER_AUDIT") == "true"
+		_, _ = security.InitSecurityManager(auditDir, configDir, enableAudit, true)
+
+		// Perform security checks
+		security.PerformSecurityChecks()
+
 		resetAdvisorState()
 	},
 	PersistentPostRun: func(cmd *cobra.Command, args []string) {

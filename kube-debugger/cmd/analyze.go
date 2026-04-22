@@ -11,6 +11,7 @@ import (
 	"github.com/spf13/cobra"
 	"kube-debugger/pkg/analyzer"
 	"kube-debugger/pkg/history"
+	"kube-debugger/pkg/security"
 )
 
 var (
@@ -31,6 +32,50 @@ var analyzeCmd = &cobra.Command{
 	Args:  cobra.ExactArgs(1),
 	Run: func(cmd *cobra.Command, args []string) {
 		appName := args[0]
+		secMgr := security.GetSecurityManager()
+
+		// Validate inputs
+		if err := security.ValidateAppName(appName); err != nil {
+			fmt.Fprintf(os.Stderr, "❌ Invalid app name: %v\n", err)
+			secMgr.LogCommand("analyze", args, appName, analyzeNamespace, err)
+			requestExitCode(1)
+			return
+		}
+
+		if analyzeNamespace != "" {
+			if err := security.ValidateNamespace(analyzeNamespace); err != nil {
+				fmt.Fprintf(os.Stderr, "❌ Invalid namespace: %v\n", err)
+				secMgr.LogCommand("analyze", args, appName, analyzeNamespace, err)
+				requestExitCode(1)
+				return
+			}
+		}
+
+		// Validate interval
+		if analyzeWatch {
+			if err := security.ValidateInterval(analyzeInterval); err != nil {
+				fmt.Fprintf(os.Stderr, "❌ Invalid interval: %v\n", err)
+				requestExitCode(1)
+				return
+			}
+		}
+
+		// Validate threshold
+		if err := security.ValidateThreshold(analyzeThreshold); err != nil {
+			fmt.Fprintf(os.Stderr, "❌ Invalid threshold: %v\n", err)
+			requestExitCode(1)
+			return
+		}
+
+		// Validate webhook if provided
+		if analyzeWebhook != "" {
+			if err := security.ValidateWebhookURL(analyzeWebhook); err != nil {
+				fmt.Fprintf(os.Stderr, "❌ Invalid webhook URL: %v\n", err)
+				requestExitCode(1)
+				return
+			}
+		}
+
 		setAdvisorContextLine("command=analyze")
 		setAdvisorContextLine("app=" + appName)
 		if analyzeNamespace != "" {
@@ -48,14 +93,23 @@ var analyzeCmd = &cobra.Command{
 				fmt.Fprintf(os.Stderr, "❌ %v\n", err)
 				setAdvisorContextLine("result=error")
 				setAdvisorContextLine("error=" + err.Error())
+				secMgr.LogCommand("analyze", args, appName, analyzeNamespace, err)
 				requestExitCode(1)
 				return 0, true
 			}
-			fmt.Print(analyzer.RenderReport(r))
+
+			// Apply output filtering for sensitive data
+			output := analyzer.RenderReport(r)
+			filteredOutput := secMgr.FilterOutput(output)
+			fmt.Print(filteredOutput)
+
 			setAdvisorContextLine(fmt.Sprintf("namespace=%s", r.Namespace))
 			setAdvisorContextLine(fmt.Sprintf("status=%s", r.Status))
 			setAdvisorContextLine(fmt.Sprintf("health_score=%d", r.HealthScore))
 			setAdvisorContextLine(fmt.Sprintf("pod_count=%d", r.PodCount))
+
+			// Log successful analysis
+			secMgr.LogCommand("analyze", args, appName, r.Namespace, nil)
 
 			// Save to history
 			history.Record(appName, r.Namespace, r.HealthScore)
