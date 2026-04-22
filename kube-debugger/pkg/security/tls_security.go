@@ -6,8 +6,11 @@ import (
 	"encoding/pem"
 	"fmt"
 	"os"
+	"sync"
 	"time"
 )
+
+var insecureTLSWarnOnce sync.Once
 
 // TLSConfig holds secure TLS configuration
 type TLSConfig struct {
@@ -182,6 +185,8 @@ func IsInsecureSkipVerifyEnabled() bool {
 // WarnIfInsecureSkipVerify logs a warning if insecure skip verify is enabled
 func WarnIfInsecureSkipVerify() {
 	if IsInsecureSkipVerifyEnabled() {
-		fmt.Fprintf(os.Stderr, "⚠️  WARNING: Certificate verification is disabled (KUBECONFIG_INSECURE_SKIP_VERIFY=true)\n")
+		insecureTLSWarnOnce.Do(func() {
+			fmt.Fprintf(os.Stderr, "⚠️  WARNING: Certificate verification is disabled (KUBECONFIG_INSECURE_SKIP_VERIFY=true)\n")
+		})
 	}
 }

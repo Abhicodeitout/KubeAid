@@ -21,6 +21,14 @@ kube-debugger
 └── help [command]
 ```
 
+## Command Surface Status
+
+As of this version, the top-level CLI command tree above is current and complete.
+
+- No additional root commands have been added yet for advanced modules.
+- New enterprise packages in `pkg/` are integrated as internal building blocks and are surfaced through existing flows (primarily `analyze` and `report`).
+- When dedicated CLI commands are added later, this file will be updated with full examples and flags.
+
 ## Global Flags
 
 | Flag | Description |
@@ -117,6 +125,11 @@ Examples:
 ./kube-debugger analyze my-app --alert-webhook https://example.com/hook --alert-threshold 75
 ./kube-debugger analyze my-app -A
 ```
+
+Notes:
+- `analyze` is the primary entrypoint for Copilot-style troubleshooting output.
+- AI provider output is used when configured; otherwise KubeAid falls back to built-in pattern analysis.
+- Security controls (input validation, redaction, RBAC checks, optional audit logging) apply automatically during command execution.
 
 ## Crashloops
 
@@ -347,6 +360,12 @@ kube-debugger/env/kube-debugger.env
 ```
 
 Loaded automatically by `make bootstrap` and `make run`.
+
+Additional runtime variable used by command execution:
+
+| Variable | Default | Purpose |
+|---|---|---|
+| `KUBE_DEBUGGER_AUDIT` | `false` | Enable security audit logs during command runs |
 
 ## One Scenario Per Command
 

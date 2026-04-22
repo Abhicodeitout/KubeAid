@@ -13,6 +13,8 @@ KubeAid is a Kubernetes debugging CLI that analyzes workloads, scores pod health
 - Report export in text, JSON, and HTML
 - Crash loop inspector with previous container logs
 - TUI with pod selector, logs panel, and context switching
+- Enterprise security controls (validation, redaction, RBAC checks, audit logging)
+- Copilot-style troubleshooting suggestions with AI and pattern fallback
 
 ## Quick Start
 
@@ -140,6 +142,38 @@ Notes:
 | `kube-debugger bootstrap` | Environment checks and optional Ollama setup |
 
 Full command examples: [kube-debugger/COMMANDS.md](kube-debugger/COMMANDS.md)
+
+## Copilot-Style Suggestions
+
+KubeAid includes Copilot-style troubleshooting guidance that produces structured, actionable fix suggestions.
+
+- Detects common failure patterns (CrashLoopBackOff, OOMKilled, ImagePull, probe failures, RBAC, network timeouts, and TLS issues)
+- Provides step-by-step remediation guidance
+- Suggests copy-runnable kubectl commands
+- Includes YAML snippets when configuration fixes are needed
+- Uses AI provider output when available, with automatic pattern-based fallback
+
+See full details in [kube-debugger/COPILOT.md](kube-debugger/COPILOT.md).
+
+## Advanced Modules
+
+The repository now includes advanced modules under [kube-debugger/pkg](kube-debugger/pkg) for enterprise expansion:
+
+- [kube-debugger/pkg/alerts](kube-debugger/pkg/alerts): alert manager, channel abstraction, deduplication, throttling
+- [kube-debugger/pkg/metrics](kube-debugger/pkg/metrics): metrics collection, retention, trend and anomaly helpers
+- [kube-debugger/pkg/optimizer](kube-debugger/pkg/optimizer): cost optimization suggestions
+- [kube-debugger/pkg/prediction](kube-debugger/pkg/prediction): predictive failure analysis helpers
+- [kube-debugger/pkg/remediation](kube-debugger/pkg/remediation): auto-remediation handler framework
+- [kube-debugger/pkg/policy](kube-debugger/pkg/policy): policy and compliance validation primitives
+- [kube-debugger/pkg/integrations](kube-debugger/pkg/integrations): integration hub abstractions (Slack, PagerDuty, Email, Datadog)
+- [kube-debugger/pkg/multicluster](kube-debugger/pkg/multicluster): multi-cluster management helpers
+- [kube-debugger/pkg/comparison](kube-debugger/pkg/comparison): cross-environment comparison utilities
+- [kube-debugger/pkg/rules](kube-debugger/pkg/rules): custom rule engine primitives
+- [kube-debugger/pkg/reporting](kube-debugger/pkg/reporting): markdown/html/json report generation helpers
+
+Current status:
+- These modules compile and are ready for integration.
+- They are package-level building blocks and are not exposed as top-level CLI commands yet.
 
 ## Common Workflows
 
@@ -315,8 +349,7 @@ kube-debugger-audit.log.10   (oldest)
 ### Security Documentation
 
 For detailed security architecture, implementation, and advanced configuration, see:
-- [pkg/security/SECURITY.md](kube-debugger/SECURITY.md) - Complete security guide
-- [TEST_REPORT.md](kube-debugger/TEST_REPORT.md) - Security test results
+- [kube-debugger/pkg/security](kube-debugger/pkg/security) - Security implementation package
 
 ## AI Configuration
 

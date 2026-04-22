@@ -39,10 +39,15 @@ func GetKubeConfig() (*rest.Config, error) {
 			return nil, err
 		}
 
-		// Apply secure TLS settings
-		tlsConfig := security.GetDefaultTLSConfig()
-		config.TLSClientConfig = rest.TLSClientConfig{
-			Insecure: tlsConfig.InsecureSkipVerify,
+		// Preserve kubeconfig CA/cert settings and only control insecure verify flag.
+		if security.IsInsecureSkipVerifyEnabled() {
+			// client-go rejects configs that set both Insecure=true and root CA data.
+			config.TLSClientConfig.Insecure = true
+			config.TLSClientConfig.CAFile = ""
+			config.TLSClientConfig.CAData = nil
+			security.WarnIfInsecureSkipVerify()
+		} else {
+			config.TLSClientConfig.Insecure = false
 		}
 
 		return config, nil

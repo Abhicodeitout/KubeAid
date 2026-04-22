@@ -147,7 +147,10 @@ func AnalyzeAppReport(appName, namespace string) (*Report, error) {
 	podList, err := clientset.CoreV1().Pods(namespace).List(context.TODO(), metav1.ListOptions{
 		LabelSelector: fmt.Sprintf("app=%s", appName),
 	})
-	if err != nil || len(podList.Items) == 0 {
+	if err != nil {
+		return nil, fmt.Errorf("failed to query pods for app '%s' in namespace '%s': %w", appName, namespace, err)
+	}
+	if len(podList.Items) == 0 {
 		return nil, fmt.Errorf("no pods found for app '%s' in namespace '%s'", appName, namespace)
 	}
 
