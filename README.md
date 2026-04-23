@@ -143,6 +143,8 @@ Notes:
 
 Full command examples: [kube-debugger/COMMANDS.md](kube-debugger/COMMANDS.md)
 
+Roadmap tracker: [ROADMAP_V2.md](ROADMAP_V2.md)
+
 ## Copilot-Style Suggestions
 
 KubeAid includes Copilot-style troubleshooting guidance that produces structured, actionable fix suggestions.
