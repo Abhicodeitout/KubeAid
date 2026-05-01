@@ -7,6 +7,7 @@ This document shows practical examples for all `kube-debugger` commands.
 ```text
 kube-debugger
 ├── analyze [app-name]
+├── timeline [app-name]
 ├── crashloops
 ├── history [app-name]
 │   └── clear [app-name]
@@ -147,6 +148,26 @@ Flags:
 | `--namespace` | `-n` | `default` | Namespace to scan |
 | `--help` | `-h` | - | Show help |
 
+## Timeline
+
+Reconstruct the incident sequence for the most relevant pod, ordered by timestamp:
+
+```sh
+./kube-debugger timeline my-app
+./kube-debugger timeline my-app -n prod
+```
+
+Flags:
+
+| Flag | Short | Default | Description |
+|---|---|---|---|
+| `--namespace` | `-n` | `default` | Kubernetes namespace for pod lookup |
+| `--help` | `-h` | - | Show help |
+
+Notes:
+- `timeline` highlights the earliest likely failure cause and marks later impacts such as restarts, probe failures, and important log signals.
+- Timeline entries are sorted by Kubernetes event/log timestamps for the selected primary pod.
+
 ## History
 
 Show recorded health score history for an app:
@@ -161,6 +182,7 @@ Clear stored history:
 ```sh
 ./kube-debugger history clear
 ./kube-debugger history clear my-app
+./kube-debugger history clear my-app -n default
 ```
 
 ## Report

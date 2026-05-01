@@ -59,6 +59,7 @@ var clearHistoryCmd = &cobra.Command{
 
 func init() {
 	historyCmd.Flags().StringVarP(&historyNamespace, "namespace", "n", "", "Filter by namespace")
+	clearHistoryCmd.Flags().StringVarP(&historyNamespace, "namespace", "n", "", "Filter by namespace")
 	historyCmd.AddCommand(clearHistoryCmd)
 	rootCmd.AddCommand(historyCmd)
 }

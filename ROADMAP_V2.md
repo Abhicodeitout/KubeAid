@@ -6,6 +6,7 @@ This tracker is the single source of truth for v2 planning and execution.
 
 - `planned`: defined, not started
 - `in-progress`: actively being built
+- `testing`: implemented and under validation
 - `blocked`: waiting on dependency/decision
 - `done`: completed and merged
 
@@ -27,7 +28,7 @@ Theme: make KubeAid stand out with incident-first debugging workflows.
 
 | ID | Item | Why it matters | Priority | Owner | Status | Issue |
 |---|---|---|---|---|---|---|
-| V2-01 | Incident Timeline Mode (`kube-debugger timeline`) | Shows sequence of failure causes instead of raw disconnected events | P0 | TBD | planned | [#7](https://github.com/Abhicodeitout/KubeAid/issues/7) |
+| V2-01 | Incident Timeline Mode (`kube-debugger timeline`) | Shows sequence of failure causes instead of raw disconnected events | P0 | TBD | testing | [#7](https://github.com/Abhicodeitout/KubeAid/issues/7) |
 | V2-02 | Fix Confidence Score in suggestions | Makes remediation guidance trustworthy and actionable | P0 | TBD | planned | [#8](https://github.com/Abhicodeitout/KubeAid/issues/8) |
 | V2-03 | Cross-environment Drift Doctor | Explains why prod fails while staging/dev passes | P1 | TBD | planned | [#9](https://github.com/Abhicodeitout/KubeAid/issues/9) |
 | V2-04 | Runbook Auto-Generator (`report --runbook`) | Converts incidents into reusable operational playbooks | P1 | TBD | planned | [#10](https://github.com/Abhicodeitout/KubeAid/issues/10) |
@@ -35,11 +36,11 @@ Theme: make KubeAid stand out with incident-first debugging workflows.
 
 ## Engineering Checklist
 
-- [ ] Define CLI UX for `timeline` command
+- [x] Define CLI UX for `timeline` command
 - [ ] Define confidence scoring model and output format
-- [ ] Add tests for new analyzer paths
+- [x] Add tests for new analyzer paths
 - [ ] Add integration test for timeline generation
-- [ ] Add/update docs with examples for each new v2 feature
+- [x] Add/update docs with examples for each new v2 feature
 - [ ] Ensure Linux/macOS/Windows artifacts are generated in CI
 - [ ] Prepare release notes template for `v0.0.2`
 

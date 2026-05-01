@@ -150,6 +150,7 @@ Notes:
 | Command | Purpose |
 |---|---|
 | `kube-debugger analyze [app-name]` | Analyze an app and print diagnosis |
+| `kube-debugger timeline [app-name]` | Reconstruct the ordered failure timeline |
 | `kube-debugger report [app-name]` | Export report in text/json/html |
 | `kube-debugger crashloops` | Show CrashLoopBackOff pods and previous logs |
 | `kube-debugger history [app-name]` | Show recorded health score history |
@@ -232,6 +233,12 @@ Inspect crash loops:
 
 ```sh
 ./kube-debugger crashloops -n default
+```
+
+Reconstruct incident flow:
+
+```sh
+./kube-debugger timeline my-app -n default
 ```
 
 View score history:
