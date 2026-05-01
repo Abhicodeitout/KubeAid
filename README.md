@@ -6,6 +6,22 @@
 
 KubeAid is a Kubernetes debugging CLI that analyzes workloads, scores pod health, and gives actionable fix steps.
 
+## Demo
+
+> **KubeAid v0.0.1** — deploying a crash-looping app and running every command end-to-end.
+
+[![Download Demo MP4](https://img.shields.io/badge/▶%20Watch%20Demo-Download%20MP4-blue?style=for-the-badge&logo=github)](https://github.com/Abhicodeitout/KubeAid/raw/main/demo/kubeaid-v001-demo.mp4)
+
+> 📥 Click the button above to download and play the MP4 video (33s · 1074×872 · H.264)
+
+**What's shown:**
+1. `version` — tool version banner
+2. `context` — active Kubernetes cluster
+3. `kubectl get pods` — crash-looping `kubeaid-demo` app
+4. `crashloops` — auto-detection of all crashing pods
+5. `analyze` — health score 0/100, events, AI hints, Copilot fix steps
+6. `report -f json` — full JSON debug report export
+
 ## What You Get
 - App-level diagnosis from pod status, events, logs, and resource hints
 - Health score (0-100) with AI or built-in fallback suggestions
