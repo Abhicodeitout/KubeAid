@@ -56,7 +56,7 @@ var timelineCmd = &cobra.Command{
 		setAdvisorContextLine(fmt.Sprintf("health_score=%d", report.HealthScore))
 		setAdvisorContextLine(fmt.Sprintf("timeline_entries=%d", len(report.Timeline)))
 		if report.FirstCause != nil {
-			setAdvisorContextLine("first_cause=" + report.FirstCause.Summary)
+			setAdvisorContextLine("first_cause=" + security.RedactSecrets(report.FirstCause.Summary))
 		}
 
 		fmt.Print(secMgr.FilterOutput(analyzer.RenderTimeline(report)))
