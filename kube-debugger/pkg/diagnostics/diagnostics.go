@@ -13,9 +13,32 @@ func SuggestFix(status, lastError string) []string {
 
 // SuggestFixForPod is like SuggestFix but substitutes real pod/namespace values.
 func SuggestFixForPod(status, lastError, podName, namespace string) []string {
+	typed := SuggestFixWithConfidenceForPod(status, lastError, podName, namespace)
+	out := make([]string, 0, len(typed))
+	for _, s := range typed {
+		out = append(out, s.Text)
+	}
+	return out
+}
+
+// SuggestFixWithConfidenceForPod returns deterministic pattern-based suggestions with confidence metadata.
+func SuggestFixWithConfidenceForPod(status, lastError, podName, namespace string) []RemediationSuggestion {
 	s := strings.ToLower(status)
 	e := strings.ToLower(lastError)
 	ns := fmt.Sprintf("-n %s", namespace)
+	confidence, rationale := patternConfidenceForStatus(status, lastError)
+	withMeta := func(items []string) []RemediationSuggestion {
+		result := make([]RemediationSuggestion, 0, len(items))
+		for _, item := range items {
+			result = append(result, RemediationSuggestion{
+				Text:       item,
+				Confidence: confidence,
+				Rationale:  rationale,
+				Source:     "pattern",
+			})
+		}
+		return result
+	}
 
 	switch {
 	case s == "crashloopbackoff":
@@ -31,73 +54,72 @@ func SuggestFixForPod(status, lastError, podName, namespace string) []string {
 		if strings.Contains(e, "connection refused") || strings.Contains(e, "dial") {
 			suggestions = append(suggestions, "Pod cannot reach a dependency — check service DNS and network policies")
 		}
-		return suggestions
+		return withMeta(suggestions)
 
 	case s == "oomkilled":
-		return []string{
+		return withMeta([]string{
 			fmt.Sprintf("kubectl describe pod %s %s  # check memory usage and limits", podName, ns),
 			"Increase memory limit: kubectl set resources deployment <name> --limits=memory=512Mi",
 			"Profile application memory usage and fix leaks",
 			"Consider enabling a Vertical Pod Autoscaler (VPA)",
-		}
+		})
 
 	case s == "imagepullbackoff" || s == "errimagepull":
-		return []string{
+		return withMeta([]string{
 			fmt.Sprintf("kubectl describe pod %s %s  # see exact pull error", podName, ns),
 			"Verify the image name and tag are correct in the deployment spec",
 			"Check that imagePullSecret exists: kubectl get secret <secret> " + ns,
 			"Test pull manually: docker pull <image>",
-		}
+		})
 
 	case s == "pending":
-		return []string{
+		return withMeta([]string{
 			fmt.Sprintf("kubectl describe pod %s %s  # check scheduling events", podName, ns),
 			"kubectl describe nodes  # check resource availability and taints",
 			"kubectl get pvc " + ns + "  # verify PersistentVolumeClaims are Bound",
 			"Check affinity/anti-affinity rules and node selectors in the deployment spec",
-		}
+		})
 
 	case s == "evicted":
-		return []string{
+		return withMeta([]string{
 			fmt.Sprintf("kubectl describe pod %s %s", podName, ns),
 			"kubectl describe node <node>  # check disk, memory, or PID pressure",
 			"Set resource requests to avoid low-priority eviction",
 			"Consider adding a PodDisruptionBudget for critical workloads",
-		}
+		})
 
 	case s == "terminating":
-		return []string{
+		return withMeta([]string{
 			fmt.Sprintf("kubectl get pod %s %s -o jsonpath='{.metadata.finalizers}'", podName, ns),
 			fmt.Sprintf("kubectl delete pod %s %s --grace-period=0 --force  # use only if stuck", podName, ns),
-		}
+		})
 
 	case strings.Contains(s, "containercreating"):
-		return []string{
+		return withMeta([]string{
 			fmt.Sprintf("kubectl describe pod %s %s  # check volume mount and secret events", podName, ns),
 			"kubectl get pvc " + ns,
 			"kubectl get configmap " + ns + "  # verify ConfigMap references exist",
-		}
+		})
 
 	case s == "runcontainererror":
-		return []string{
+		return withMeta([]string{
 			fmt.Sprintf("kubectl describe pod %s %s  # see exact runtime error", podName, ns),
 			"Check that the container entrypoint/command is correct in the deployment spec",
-		}
+		})
 
 	case strings.Contains(s, "probe") || strings.Contains(e, "liveness") || strings.Contains(e, "readiness"):
-		return []string{
+		return withMeta([]string{
 			fmt.Sprintf("kubectl describe pod %s %s  # see probe failure details", podName, ns),
 			"Check probe endpoint, port, and initialDelaySeconds in the deployment spec",
 			"Ensure the app is healthy and responding within the probe timeout",
-		}
+		})
 
 	default:
-		return []string{
+		return withMeta([]string{
 			fmt.Sprintf("kubectl describe pod %s %s", podName, ns),
 			fmt.Sprintf("kubectl logs %s %s --tail=100", podName, ns),
 			"kubectl get events " + ns + " --sort-by='.lastTimestamp'",
 			"Check resource limits and requests in the deployment spec",
-		}
+		})
 	}
 }
-

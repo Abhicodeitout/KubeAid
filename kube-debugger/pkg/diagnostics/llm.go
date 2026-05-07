@@ -1,6 +1,7 @@
 package diagnostics
 
 import (
+	"bufio"
 	"bytes"
 	"encoding/json"
 	"fmt"
@@ -8,6 +9,7 @@ import (
 	"math"
 	"net/http"
 	"os"
+	"path/filepath"
 	"strconv"
 	"strings"
 	"time"
@@ -21,10 +23,10 @@ const (
 
 // LLMConfig is resolved once from environment variables.
 type LLMConfig struct {
-	Provider  string // "ollama" | "groq" | ""
-	Model     string
-	BaseURL   string // Ollama only
-	APIKey    string // Groq only
+	Provider string // "ollama" | "groq" | ""
+	Model    string
+	BaseURL  string // Ollama only
+	APIKey   string // Groq only
 }
 
 // ResolveLLMConfig reads environment variables to build an LLMConfig.
@@ -34,15 +36,37 @@ type LLMConfig struct {
 //	KUBEAID_OLLAMA_URL   = Ollama base URL               (default: http://localhost:11434)
 //	GROQ_API_KEY         = Groq API key
 func ResolveLLMConfig() LLMConfig {
-	provider := strings.ToLower(strings.TrimSpace(os.Getenv("KUBEAID_AI_PROVIDER")))
-	model := strings.TrimSpace(os.Getenv("KUBEAID_AI_MODEL"))
+	providerRaw, providerSet := os.LookupEnv("KUBEAID_AI_PROVIDER")
+	modelRaw, modelSet := os.LookupEnv("KUBEAID_AI_MODEL")
+
+	provider := strings.ToLower(strings.TrimSpace(providerRaw))
+	model := strings.TrimSpace(modelRaw)
+
+	fileVars := map[string]string{}
+	if !providerSet || !modelSet {
+		fileVars = loadAIConfigFromEnvFile()
+		if !providerSet {
+			provider = strings.ToLower(strings.TrimSpace(fileVars["KUBEAID_AI_PROVIDER"]))
+		}
+		if !modelSet {
+			model = strings.TrimSpace(fileVars["KUBEAID_AI_MODEL"])
+		}
+	}
+
+	// Respect explicit empty provider (used by smoke tests/CI to disable AI).
+	if providerSet && strings.TrimSpace(providerRaw) == "" {
+		return LLMConfig{}
+	}
 
 	switch provider {
 	case ProviderOllama:
 		if model == "" {
 			model = "llama3.2"
 		}
-		baseURL := os.Getenv("KUBEAID_OLLAMA_URL")
+		baseURL := strings.TrimSpace(os.Getenv("KUBEAID_OLLAMA_URL"))
+		if baseURL == "" {
+			baseURL = strings.TrimSpace(fileVars["KUBEAID_OLLAMA_URL"])
+		}
 		if baseURL == "" {
 			baseURL = "http://localhost:11434"
 		}
@@ -52,16 +76,72 @@ func ResolveLLMConfig() LLMConfig {
 		if model == "" {
 			model = "llama3-8b-8192"
 		}
+		apiKey := os.Getenv("GROQ_API_KEY")
+		if strings.TrimSpace(apiKey) == "" {
+			apiKey = fileVars["GROQ_API_KEY"]
+		}
 		return LLMConfig{
 			Provider: ProviderGroq,
 			Model:    model,
 			BaseURL:  "https://api.groq.com",
-			APIKey:   os.Getenv("GROQ_API_KEY"),
+			APIKey:   apiKey,
 		}
 
 	default:
 		return LLMConfig{} // no LLM configured
 	}
+}
+
+func loadAIConfigFromEnvFile() map[string]string {
+	paths := []string{
+		"env/kube-debugger.env",
+	}
+
+	if exe, err := os.Executable(); err == nil {
+		exeDir := filepath.Dir(exe)
+		paths = append(paths,
+			filepath.Join(exeDir, "env", "kube-debugger.env"),
+			filepath.Join(exeDir, "..", "env", "kube-debugger.env"),
+		)
+	}
+
+	for _, p := range paths {
+		vars, ok := parseSimpleEnvFile(p)
+		if ok {
+			return vars
+		}
+	}
+	return map[string]string{}
+}
+
+func parseSimpleEnvFile(path string) (map[string]string, bool) {
+	f, err := os.Open(path)
+	if err != nil {
+		return nil, false
+	}
+	defer func() { _ = f.Close() }()
+
+	vars := map[string]string{}
+	s := bufio.NewScanner(f)
+	for s.Scan() {
+		line := strings.TrimSpace(s.Text())
+		if line == "" || strings.HasPrefix(line, "#") {
+			continue
+		}
+		line = strings.TrimPrefix(line, "export ")
+		idx := strings.Index(line, "=")
+		if idx <= 0 {
+			continue
+		}
+		k := strings.TrimSpace(line[:idx])
+		v := strings.TrimSpace(line[idx+1:])
+		v = strings.Trim(v, "\"'")
+		vars[k] = v
+	}
+	if err := s.Err(); err != nil {
+		return nil, false
+	}
+	return vars, true
 }
 
 // CallLLM sends a prompt to the configured provider and returns the response text.
@@ -231,7 +311,7 @@ Restarts:  %d
 --- RECENT LOGS ---
 %s
 
-Respond in plain text. No markdown headers. Max 5 sentences.`,
+Respond in plain text. Start with "Confidence: high|medium|low". No markdown headers. Max 5 sentences.`,
 		appName, namespace, podName, status, restarts, eventsSnip, logsSnip)
 }
 

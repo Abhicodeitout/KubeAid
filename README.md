@@ -31,6 +31,7 @@ KubeAid is a Kubernetes debugging CLI that analyzes workloads, scores pod health
 - TUI with pod selector, logs panel, and context switching
 - Enterprise security controls (validation, redaction, RBAC checks, audit logging)
 - Copilot-style troubleshooting suggestions with AI and pattern fallback
+- Confidence scoring (High/Medium/Low) with rationale for AI and fallback suggestions
 
 ## Quick Start
 
@@ -39,6 +40,24 @@ cd kube-debugger
 make build VERSION=v1.2.0
 ./kube-debugger --help
 ```
+
+One-command local AI setup after cloning:
+
+```sh
+cd kube-debugger
+./kube-debugger bootstrap --skip-kubeconfig-check
+source env/kube-debugger.env
+```
+
+By default, `bootstrap` now auto-installs Ollama (if missing), starts it, pulls the default `tinyllama` model, writes an AI-ready env file, and runs a live inference probe.
+
+If the probe reports `LLM inference check: SLOW`, KubeAid will still work, but AI hints will fall back to deterministic pattern matching until the local model responds within the configured timeout.
+
+The generated env file includes:
+- `KUBEAID_AI_PROVIDER=ollama`
+- `KUBEAID_AI_MODEL=tinyllama`
+- `KUBEAID_OLLAMA_URL=http://localhost:11434`
+- `KUBEAID_AI_TIMEOUT_SECONDS=300`
 
 Analyze one app:
 
@@ -170,6 +189,22 @@ KubeAid includes Copilot-style troubleshooting guidance that produces structured
 - Suggests copy-runnable kubectl commands
 - Includes YAML snippets when configuration fixes are needed
 - Uses AI provider output when available, with automatic pattern-based fallback
+- Normalizes AI output into High/Medium/Low confidence buckets
+- Applies deterministic confidence rules for pattern-based fallback suggestions
+
+### Confidence Levels
+
+KubeAid annotates AI hints and remediation suggestions with confidence levels:
+
+- High: strong direct signals (for example explicit Kubernetes states like OOMKilled, ImagePullBackOff, Evicted, or very specific log signatures)
+- Medium: useful signals with some ambiguity (for example CrashLoopBackOff without a clear final error, probe failures, pending scheduling constraints)
+- Low: weak or generic signals where no deterministic pattern match is available
+
+How to use this in practice:
+
+1. Execute High confidence actions first, especially low-risk inspection commands (`kubectl describe`, `kubectl logs`, event checks).
+2. Use Medium confidence suggestions as guided hypotheses and validate with events, manifests, and dependency health.
+3. Treat Low confidence suggestions as triage starting points, not root-cause conclusions.
 
 See full details in [kube-debugger/COPILOT.md](kube-debugger/COPILOT.md).
 

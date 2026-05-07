@@ -7,8 +7,11 @@ import (
 
 // CopilotSuggestion represents an AI suggestion with context
 type CopilotSuggestion struct {
-	Title       string   // Main suggestion title
-	Severity    string   // "critical", "warning", "info"
+	Title       string // Main suggestion title
+	Severity    string // "critical", "warning", "info"
+	Confidence  ConfidenceLevel
+	Rationale   string
+	Source      string
 	Description string   // Detailed explanation
 	Steps       []string // Step-by-step fix instructions
 	YAMLFix     string   // Suggested YAML fix (if applicable)
@@ -37,10 +40,11 @@ Analyze this pod issue and provide comprehensive, actionable suggestions.
 Please provide:
 1. Root cause analysis (what's likely wrong)
 2. Severity level (critical/warning/info)
-3. Step-by-step fix instructions
-4. Suggested kubectl commands to run
-5. YAML configuration fixes (if applicable)
-6. Prevention tips for the future
+3. Confidence level (high/medium/low)
+4. Step-by-step fix instructions
+5. Suggested kubectl commands to run
+6. YAML configuration fixes (if applicable)
+7. Prevention tips for the future
 
 Format your response as actionable suggestions that can be copy-pasted.`, appName, namespace, podName, status, restarts, truncateText(logs, 1000), truncateText(events, 500))
 
@@ -50,7 +54,7 @@ Format your response as actionable suggestions that can be copy-pasted.`, appNam
 // EnhancedAnalyzeWithContext provides copilot-like suggestions
 func EnhancedAnalyzeWithContext(appName, namespace, podName, status string, restarts int32, logs, events string) *CopilotSuggestion {
 	cfg := ResolveLLMConfig()
-	
+
 	// Try AI provider first
 	if cfg.Provider != "" {
 		prompt := BuildCopilotPrompt(appName, namespace, podName, status, restarts, logs, events)
@@ -59,16 +63,32 @@ func EnhancedAnalyzeWithContext(appName, namespace, podName, status string, rest
 			return parseLLMSuggestion(appName, cfg.Provider, cfg.Model, result)
 		}
 	}
-	
+
 	// Fall back to pattern-based suggestions
-	return analyzePatternsCopilot(appName, namespace, podName, status, restarts, logs, events)
+	suggestion := analyzePatternsCopilot(appName, namespace, podName, status, restarts, logs, events)
+	if suggestion == nil {
+		return nil
+	}
+	if suggestion.Confidence == "" {
+		confidence, rationale := patternConfidenceForStatus(status, logs+"\n"+events)
+		suggestion.Confidence = confidence
+		suggestion.Rationale = rationale
+	}
+	if suggestion.Source == "" {
+		suggestion.Source = "pattern"
+	}
+	return suggestion
 }
 
 // parseLLMSuggestion converts LLM response to structured suggestion
 func parseLLMSuggestion(appName, provider, model, response string) *CopilotSuggestion {
+	confidence, rationale := NormalizeLLMConfidence(response)
 	suggestion := &CopilotSuggestion{
 		Title:       fmt.Sprintf("🤖 AI Analysis (%s/%s)", provider, model),
 		Severity:    determineSeverity(response),
+		Confidence:  confidence,
+		Rationale:   rationale,
+		Source:      "llm",
 		Description: response,
 		Steps:       extractSteps(response),
 		Commands:    extractCommands(response),
@@ -270,6 +290,15 @@ func (s *CopilotSuggestion) Format() string {
 	}
 
 	output := fmt.Sprintf("## %s [%s]\n\n", s.Title, s.Severity)
+	if s.Confidence != "" {
+		output += fmt.Sprintf("**Confidence:** %s\n", s.Confidence)
+	}
+	if s.Rationale != "" {
+		output += fmt.Sprintf("**Confidence Rationale:** %s\n", s.Rationale)
+	}
+	if s.Confidence != "" || s.Rationale != "" {
+		output += "\n"
+	}
 	output += fmt.Sprintf("**Description:** %s\n\n", s.Description)
 
 	if len(s.Steps) > 0 {

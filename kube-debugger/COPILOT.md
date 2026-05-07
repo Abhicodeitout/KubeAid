@@ -27,6 +27,25 @@ Notes:
 3. If no provider is configured, or the provider call fails, KubeAid falls back to deterministic rule-based suggestions.
 4. Suggestions are printed as next-step actions, usually including `kubectl` or `kube-debugger` commands.
 
+## Confidence Scoring
+
+KubeAid annotates remediation suggestions and AI hints with confidence buckets:
+- High
+- Medium
+- Low
+
+### How confidence is determined
+
+- AI provider output is normalized into High/Medium/Low using deterministic language cues.
+- Pattern fallback uses deterministic status/error rules (for example, OOMKilled and ImagePullBackOff map to High confidence, while generic fallback maps to Low confidence).
+- Each suggestion includes a short rationale describing why that confidence level was chosen.
+
+### How to interpret levels
+
+1. High: prioritize these actions first; they are tied to strong direct signals.
+2. Medium: useful direction, but validate assumptions with logs, events, and manifests.
+3. Low: starting hypotheses only; broaden investigation before applying risky changes.
+
 ## Configure AI Providers
 
 Use environment variables (see `env/kube-debugger.env` for defaults).

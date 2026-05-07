@@ -30,7 +30,7 @@ smoke-test: build
 	@$(NO_AI_ENV) ./$(APP_NAME) completion zsh >/dev/null
 	@$(NO_AI_ENV) ./$(APP_NAME) completion fish >/dev/null
 	@$(NO_AI_ENV) ./$(APP_NAME) completion powershell >/dev/null
-	@$(NO_AI_ENV) ./$(APP_NAME) bootstrap --skip-kubeconfig-check >/dev/null
+	@$(NO_AI_ENV) ./$(APP_NAME) bootstrap --skip-kubeconfig-check --auto-setup=false >/dev/null
 	@set +e; \
 	$(NO_AI_ENV) ./$(APP_NAME) analyze demo-app -n default >/tmp/kubeaid-smoke-analyze.out 2>/tmp/kubeaid-smoke-analyze.err; \
 	rc=$$?; \

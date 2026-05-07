@@ -29,19 +29,22 @@ type Report struct {
 	PodCount  int          `json:"pod_count"`
 	Pods      []PodSummary `json:"pods"`
 	// Primary pod (most relevant / most troubled)
-	PodName      string    `json:"pod_name"`
-	Status       string    `json:"status"`
-	Ready        string    `json:"ready"`
-	RestartCount int32     `json:"restart_count"`
-	Age          string    `json:"age"`
-	HealthScore  int       `json:"health_score"`
-	Logs         string    `json:"logs"`
-	Events       string    `json:"events"`
-	Resources    string    `json:"resources"`
-	AIHint       string    `json:"ai_hint"`
-	Suggestions  []string  `json:"suggestions"`
-	CopilotFix   string    `json:"copilot_fix"`   // Copilot-style structured suggestion
-	GeneratedAt  time.Time `json:"generated_at"`
+	PodName           string                              `json:"pod_name"`
+	Status            string                              `json:"status"`
+	Ready             string                              `json:"ready"`
+	RestartCount      int32                               `json:"restart_count"`
+	Age               string                              `json:"age"`
+	HealthScore       int                                 `json:"health_score"`
+	Logs              string                              `json:"logs"`
+	Events            string                              `json:"events"`
+	Resources         string                              `json:"resources"`
+	AIHint            string                              `json:"ai_hint"`
+	AIConfidence      string                              `json:"ai_confidence"`
+	AIRationale       string                              `json:"ai_rationale"`
+	Suggestions       []string                            `json:"suggestions"`
+	SuggestionDetails []diagnostics.RemediationSuggestion `json:"suggestion_details"`
+	CopilotFix        string                              `json:"copilot_fix"` // Copilot-style structured suggestion
+	GeneratedAt       time.Time                           `json:"generated_at"`
 }
 
 // HealthScore computes a 0–100 score based on status, readiness, restarts, and events.
@@ -196,25 +199,34 @@ func AnalyzeAppReport(appName, namespace string) (*Report, error) {
 	if len(pod.Status.ContainerStatuses) > 0 && pod.Status.ContainerStatuses[0].LastTerminationState.Terminated != nil {
 		lastError = pod.Status.ContainerStatuses[0].LastTerminationState.Terminated.Message
 	}
+	aiHint := diagnostics.AnalyzeWithContextDetailed(appName, namespace, ps.Name, ps.Status, ps.RestartCount, logs, events)
+	typedSuggestions := diagnostics.SuggestFixWithConfidenceForPod(ps.Status, lastError, ps.Name, namespace)
+	legacySuggestions := make([]string, 0, len(typedSuggestions))
+	for _, s := range typedSuggestions {
+		legacySuggestions = append(legacySuggestions, s.Text)
+	}
 
 	return &Report{
-		AppName:      appName,
-		Namespace:    namespace,
-		PodCount:     len(podList.Items),
-		Pods:         summaries,
-		PodName:      ps.Name,
-		Status:       ps.Status,
-		Ready:        ps.Ready,
-		RestartCount: ps.RestartCount,
-		Age:          ps.Age,
-		HealthScore:  computeHealthScore(ps.Status, ps.Ready, ps.RestartCount, events),
-		Logs:         logs,
-		Events:       events,
-		Resources:    resources,
-		AIHint:       diagnostics.AnalyzeWithContext(appName, namespace, ps.Name, ps.Status, ps.RestartCount, logs, events),
-		CopilotFix:   formatCopilotSuggestion(appName, namespace, ps.Name, ps.Status, ps.RestartCount, logs, events),
-		Suggestions:  diagnostics.SuggestFixForPod(ps.Status, lastError, ps.Name, namespace),
-		GeneratedAt:  time.Now().UTC(),
+		AppName:           appName,
+		Namespace:         namespace,
+		PodCount:          len(podList.Items),
+		Pods:              summaries,
+		PodName:           ps.Name,
+		Status:            ps.Status,
+		Ready:             ps.Ready,
+		RestartCount:      ps.RestartCount,
+		Age:               ps.Age,
+		HealthScore:       computeHealthScore(ps.Status, ps.Ready, ps.RestartCount, events),
+		Logs:              logs,
+		Events:            events,
+		Resources:         resources,
+		AIHint:            aiHint.Message,
+		AIConfidence:      string(aiHint.Confidence),
+		AIRationale:       aiHint.Rationale,
+		CopilotFix:        formatCopilotSuggestion(appName, namespace, ps.Name, ps.Status, ps.RestartCount, logs, events),
+		Suggestions:       legacySuggestions,
+		SuggestionDetails: typedSuggestions,
+		GeneratedAt:       time.Now().UTC(),
 	}, nil
 }
 
@@ -326,6 +338,12 @@ func renderReport(r *Report) string {
 	// ── AI Hint ──────────────────────────────────────────────────────────────
 	b.WriteString(divider("AI ANALYSIS"))
 	b.WriteString("  " + styleHint.Render(r.AIHint) + "\n")
+	if strings.TrimSpace(r.AIConfidence) != "" {
+		b.WriteString(kv("Confidence:", r.AIConfidence) + "\n")
+	}
+	if strings.TrimSpace(r.AIRationale) != "" {
+		b.WriteString(kv("Rationale:", r.AIRationale) + "\n")
+	}
 
 	// ── Copilot Fix ──────────────────────────────────────────────────────────
 	if r.CopilotFix != "" {
@@ -335,8 +353,17 @@ func renderReport(r *Report) string {
 
 	// ── Suggestions ──────────────────────────────────────────────────────────
 	b.WriteString(divider("SUGGESTIONS"))
-	for i, s := range r.Suggestions {
-		b.WriteString(styleYellow.Render(fmt.Sprintf("  %d. ", i+1)) + styleValue.Render(s) + "\n")
+	if len(r.SuggestionDetails) > 0 {
+		for i, s := range r.SuggestionDetails {
+			b.WriteString(styleYellow.Render(fmt.Sprintf("  %d. ", i+1)) + styleValue.Render(fmt.Sprintf("[%s] %s", s.Confidence, s.Text)) + "\n")
+			if strings.TrimSpace(s.Rationale) != "" {
+				b.WriteString(styleDim.Render("     rationale: "+s.Rationale) + "\n")
+			}
+		}
+	} else {
+		for i, s := range r.Suggestions {
+			b.WriteString(styleYellow.Render(fmt.Sprintf("  %d. ", i+1)) + styleValue.Render(s) + "\n")
+		}
 	}
 
 	// ── Events ───────────────────────────────────────────────────────────────
