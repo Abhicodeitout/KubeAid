@@ -7,7 +7,7 @@ import (
 
 func TestAnalyzeLogsAI(t *testing.T) {
 	cases := []struct {
-		log string
+		log    string
 		expect string
 	}{
 		{"connection refused on port 5432", "Network connectivity issue"},
@@ -20,5 +20,31 @@ func TestAnalyzeLogsAI(t *testing.T) {
 		if c.expect != "" && !strings.Contains(result, c.expect) {
 			t.Errorf("Expected '%s' in result for log '%s', got '%s'", c.expect, c.log, result)
 		}
+	}
+}
+
+func TestAnalyzeWithContextDetailedUsesStatusAndEventsSignals(t *testing.T) {
+	hint := AnalyzeWithContextDetailed(
+		"demo",
+		"default",
+		"pod-a",
+		"ImagePullBackOff",
+		0,
+		"",
+		"Failed: Error: ImagePullBackOff",
+	)
+
+	if hint.Confidence != ConfidenceHigh {
+		t.Fatalf("expected High confidence from ImagePullBackOff status/events, got %s", hint.Confidence)
+	}
+	if !strings.Contains(hint.Message, "Image pull failed") {
+		t.Fatalf("expected image pull AI hint message, got: %s", hint.Message)
+	}
+}
+
+func TestAnalyzeSignalsAIWithConfidenceDefaultLow(t *testing.T) {
+	hint := AnalyzeSignalsAIWithConfidence("Running", "all good", "Normal: Started")
+	if hint.Confidence != ConfidenceLow {
+		t.Fatalf("expected Low confidence for non-matching signals, got %s", hint.Confidence)
 	}
 }

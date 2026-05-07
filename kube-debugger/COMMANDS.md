@@ -255,6 +255,18 @@ Basic environment pre-check:
 ./kube-debugger bootstrap
 ```
 
+By default, `bootstrap` now auto-sets up local AI if no Ollama flags are provided:
+- installs Ollama (if missing)
+- starts Ollama (if not running)
+- pulls default model (`llama3.2`, or `KUBEAID_AI_MODEL` if set)
+- writes an AI-ready env file at `env/kube-debugger.env`
+
+Disable auto setup and run pre-checks only:
+
+```sh
+./kube-debugger bootstrap --auto-setup=false
+```
+
 Install and start Ollama, then pull free local model:
 
 ```sh
@@ -274,6 +286,8 @@ Flags:
 | `--install-ollama` | `false` | Install Ollama if missing |
 | `--start-ollama` | `false` | Start Ollama if installed but not running |
 | `--pull-model` | empty | Pull model after setup (example: `llama3.2`) |
+| `--auto-setup` | `true` | Auto-install/start/pull default model when explicit Ollama flags are not provided |
+| `--env-file` | `env/kube-debugger.env` | Write AI-ready environment variables to this file |
 | `--skip-kubeconfig-check` | `false` | Skip kubeconfig validation |
 | `--help` | - | Show help |
 

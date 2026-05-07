@@ -80,9 +80,15 @@ var htmlReportTmpl = `<!DOCTYPE html>
 
   <h2>AI Hint</h2>
   <div class="hint">{{.AIHint}}</div>
+	{{if .AIConfidence}}<p><strong>Confidence:</strong> {{.AIConfidence}}</p>{{end}}
+	{{if .AIRationale}}<p><strong>Rationale:</strong> {{.AIRationale}}</p>{{end}}
 
   <h2>Suggestions</h2>
-  <ul>{{range .Suggestions}}<li>{{.}}</li>{{end}}</ul>
+	{{if .SuggestionDetails}}
+	<ul>{{range .SuggestionDetails}}<li><strong>[{{.Confidence}}]</strong> {{.Text}}<br><em>Rationale:</em> {{.Rationale}}</li>{{end}}</ul>
+	{{else}}
+	<ul>{{range .Suggestions}}<li>{{.}}</li>{{end}}</ul>
+	{{end}}
 
   <h2>Last Logs</h2>
   <pre>{{.Logs}}</pre>
@@ -164,10 +170,26 @@ var reportCmd = &cobra.Command{
 				}
 				sb.WriteString("\n")
 			}
-			fmt.Fprintf(&sb, "AI Hint:\n%s\n\n", r.AIHint)
+			fmt.Fprintf(&sb, "AI Hint:\n%s\n", r.AIHint)
+			if r.AIConfidence != "" {
+				fmt.Fprintf(&sb, "Confidence: %s\n", r.AIConfidence)
+			}
+			if r.AIRationale != "" {
+				fmt.Fprintf(&sb, "Rationale:  %s\n", r.AIRationale)
+			}
+			sb.WriteString("\n")
 			sb.WriteString("Suggestions:\n")
-			for _, s := range r.Suggestions {
-				fmt.Fprintf(&sb, "  - %s\n", s)
+			if len(r.SuggestionDetails) > 0 {
+				for _, s := range r.SuggestionDetails {
+					fmt.Fprintf(&sb, "  - [%s] %s\n", s.Confidence, s.Text)
+					if s.Rationale != "" {
+						fmt.Fprintf(&sb, "    rationale: %s\n", s.Rationale)
+					}
+				}
+			} else {
+				for _, s := range r.Suggestions {
+					fmt.Fprintf(&sb, "  - %s\n", s)
+				}
 			}
 			fmt.Fprintf(&sb, "\nLast Logs:\n%s\n", r.Logs)
 			fmt.Fprintf(&sb, "\nEvents:\n%s\n", r.Events)
@@ -280,10 +302,16 @@ func createGitHubIssue(r *analyzer.Report) {
 		return
 	}
 	title := fmt.Sprintf("[kube-debugger] %s health score: %d/100", r.AppName, r.HealthScore)
-	body := fmt.Sprintf("## KubeAid Debug Report\n\n**App:** %s\n**Namespace:** %s\n**Health Score:** %d/100\n**Generated:** %s\n\n### AI Hint\n%s\n\n### Suggestions\n",
-		r.AppName, r.Namespace, r.HealthScore, r.GeneratedAt.Format(time.RFC3339), r.AIHint)
-	for _, s := range r.Suggestions {
-		body += fmt.Sprintf("- `%s`\n", s)
+	body := fmt.Sprintf("## KubeAid Debug Report\n\n**App:** %s\n**Namespace:** %s\n**Health Score:** %d/100\n**Generated:** %s\n\n### AI Hint\n%s\n\n**Confidence:** %s\n\n**Rationale:** %s\n\n### Suggestions\n",
+		r.AppName, r.Namespace, r.HealthScore, r.GeneratedAt.Format(time.RFC3339), r.AIHint, r.AIConfidence, r.AIRationale)
+	if len(r.SuggestionDetails) > 0 {
+		for _, s := range r.SuggestionDetails {
+			body += fmt.Sprintf("- [%s] `%s`\n  - rationale: %s\n", s.Confidence, s.Text, s.Rationale)
+		}
+	} else {
+		for _, s := range r.Suggestions {
+			body += fmt.Sprintf("- `%s`\n", s)
+		}
 	}
 	body += fmt.Sprintf("\n### Last Events\n```\n%s\n```", r.Events)
 
@@ -304,4 +332,3 @@ func init() {
 	reportCmd.Flags().BoolVar(&reportIssue, "create-issue", false, "Create a GitHub issue via gh CLI")
 	rootCmd.AddCommand(reportCmd)
 }
-
